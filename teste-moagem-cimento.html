@@ -1,0 +1,1346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teste de Moagem — Moinho de Cimento 02</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+  :root{
+    --bg:#EAE6DD;
+    --surface:#FFFFFF;
+    --surface-alt:#F4F1EA;
+    --ink:#242220;
+    --ink-soft:#6B655C;
+    --accent:#B34A22;
+    --accent-soft:#F0DED2;
+    --line:#DAD3C4;
+    --line-strong:#C3BAA7;
+    --good:#3E6B4F;
+    --good-soft:#DEEBE1;
+    --bad:#A33B2B;
+    --bad-soft:#F3DCD5;
+    --branco:#4A5C6B;
+    --branco-soft:#DEE5E9;
+    --radius:3px;
+    --shadow:0 1px 2px rgba(36,34,32,0.08);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,h4{font-family:'Space Grotesk',sans-serif;margin:0;letter-spacing:-0.01em;}
+  .app{max-width:1320px;margin:0 auto;padding:0 20px 60px;}
+  header.top{
+    padding:28px 20px 20px;
+    border-bottom:2px solid var(--ink);
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  header.top .brand{display:flex;flex-direction:column;gap:4px;}
+  header.top h1{font-size:26px;font-weight:700;}
+  header.top .plant-line{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  header.top .kiln-mark{
+    width:44px;height:44px;border:2px solid var(--ink);border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:13px;
+    flex-shrink:0;
+  }
+
+  nav.tabs{
+    display:flex;
+    gap:2px;
+    border-bottom:1px solid var(--line-strong);
+    margin-bottom:24px;
+    overflow-x:auto;
+  }
+  nav.tabs button{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:14px;
+    font-weight:600;
+    background:transparent;
+    border:none;
+    padding:14px 18px 12px;
+    cursor:pointer;
+    color:var(--ink-soft);
+    border-bottom:3px solid transparent;
+    white-space:nowrap;
+  }
+  nav.tabs button.active{color:var(--ink);border-bottom-color:var(--accent);}
+  nav.tabs button:hover{color:var(--ink);}
+
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .section-head{margin:6px 0 16px;}
+  .section-head h2{font-size:19px;}
+  .section-head p{margin:4px 0 0;color:var(--ink-soft);font-size:13px;max-width:660px;}
+
+  .card{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:18px 20px;
+    margin-bottom:16px;
+    box-shadow:var(--shadow);
+  }
+  .card.editing{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);}
+  .card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px;flex-wrap:wrap;}
+  .card-title-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .badge{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:0.04em;
+    padding:3px 8px;
+    border-radius:2px;
+    text-transform:uppercase;
+    font-weight:500;
+  }
+  .badge.branco{background:var(--branco-soft);color:var(--branco);}
+  .badge.teste{background:var(--accent-soft);color:var(--accent);}
+  .badge.editmode{background:var(--ink);color:#fff;}
+
+  input[type=text], input[type=number], input[type=date], select{
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:13.5px;
+    padding:7px 9px;
+    border:1px solid var(--line-strong);
+    border-radius:2px;
+    background:var(--surface);
+    color:var(--ink);
+    width:100%;
+  }
+  input:focus, select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  label{font-size:11.5px;color:var(--ink-soft);display:block;margin-bottom:4px;}
+
+  button.btn{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:13px;
+    padding:9px 16px;
+    border-radius:2px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:#fff;
+    cursor:pointer;
+  }
+  button.btn.secondary{background:transparent;color:var(--ink);}
+  button.btn.accent{background:var(--accent);border-color:var(--accent);}
+  button.btn.ghost{border-color:var(--line-strong);background:transparent;color:var(--ink-soft);font-weight:500;}
+  button.btn.small{padding:5px 10px;font-size:12px;}
+  button.btn:disabled{opacity:0.4;cursor:not-allowed;}
+  button.icon-btn{
+    background:transparent;border:none;color:var(--ink-soft);cursor:pointer;
+    font-size:13px;line-height:1;padding:5px 8px;font-family:'Space Grotesk',sans-serif;font-weight:600;
+    border:1px solid var(--line-strong);border-radius:2px;
+  }
+  button.icon-btn:hover{color:var(--ink);border-color:var(--ink);}
+  button.icon-btn.danger:hover{color:var(--bad);border-color:var(--bad);}
+
+  .mat-table{width:100%;border-collapse:collapse;margin-bottom:10px;}
+  .mat-table th{
+    text-align:left;font-size:11px;color:var(--ink-soft);font-weight:500;
+    text-transform:uppercase;letter-spacing:0.04em;padding:6px 8px;border-bottom:1px solid var(--line-strong);
+  }
+  .mat-table td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  .mat-table th.num, .mat-table td.num{text-align:right;}
+  .mat-table input{padding:6px 8px;}
+  .mat-table.view td{font-size:13.5px;}
+  .mat-table.view td.role-fixed{color:var(--ink-soft);}
+
+  .pct-total{
+    display:flex;align-items:center;gap:8px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-top:6px;
+  }
+  .pct-total .ok{color:var(--good);}
+  .pct-total .warn{color:var(--bad);}
+
+  .scoop-box{
+    background:var(--surface-alt);border:1px dashed var(--line-strong);border-radius:2px;
+    padding:12px 14px;margin-top:12px;
+  }
+  .scoop-box h4{font-size:12.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);margin:0 0 8px;font-weight:600;font-family:'IBM Plex Sans';}
+  .scoop-ratio{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin-bottom:6px;}
+  .scoop-ratio span{color:var(--accent);}
+  .scoop-cycle{font-size:12.5px;color:var(--ink-soft);margin-bottom:10px;}
+  table.scoop-table{width:100%;border-collapse:collapse;font-size:13px;}
+  table.scoop-table th, table.scoop-table td{padding:5px 8px;text-align:center;border-bottom:1px solid var(--line);}
+  table.scoop-table th{color:var(--ink-soft);font-weight:500;font-size:11px;text-transform:uppercase;}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line-strong);border-radius:var(--radius);background:var(--surface);}
+  table.analysis{border-collapse:collapse;width:100%;min-width:1600px;font-size:12.5px;}
+  table.analysis th, table.analysis td{border:1px solid var(--line);padding:6px 7px;text-align:center;white-space:nowrap;}
+  table.analysis thead tr.group th{
+    background:var(--ink);color:#fff;font-family:'Space Grotesk',sans-serif;font-size:11px;
+    text-transform:uppercase;letter-spacing:0.05em;font-weight:600;
+  }
+  table.analysis thead tr.sub th{background:var(--surface-alt);font-weight:600;font-size:11px;color:var(--ink);}
+  table.analysis thead tr.unit th{background:var(--surface);font-size:10.5px;font-style:italic;color:var(--ink-soft);}
+  table.analysis tbody td{background:var(--surface);}
+  table.analysis tbody tr.row-branco td.id-cell{background:var(--branco-soft);}
+  table.analysis tbody tr.row-teste td.id-cell{background:var(--accent-soft);}
+  table.analysis tbody tr.is-editing td{background:#FFFBF2;}
+  table.analysis input{
+    width:64px;padding:4px 5px;text-align:center;border:1px solid var(--line-strong);background:#fff;font-size:12.5px;
+  }
+  table.analysis td.id-cell{text-align:left;min-width:150px;}
+  .row-name-input{width:130px !important;text-align:left !important;font-weight:600;}
+  table.analysis td.actions-cell{white-space:nowrap;}
+  table.analysis td.actions-cell button{margin:1px;}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;}
+  .toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  select.baseline-select{width:auto;min-width:220px;}
+
+  .empty{
+    padding:34px 20px;text-align:center;color:var(--ink-soft);border:1px dashed var(--line-strong);
+    border-radius:var(--radius);background:var(--surface-alt);font-size:13.5px;
+  }
+
+  .cost-table{width:100%;border-collapse:collapse;}
+  .cost-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);padding:8px 10px;border-bottom:1px solid var(--line-strong);}
+  .cost-table td{padding:8px 10px;border-bottom:1px solid var(--line);}
+  .cost-table td.num, .cost-table th.num{text-align:right;}
+  .cost-table input{max-width:120px;text-align:right;}
+  .cost-summary-table{width:100%;border-collapse:collapse;margin-top:8px;}
+  .cost-summary-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);padding:8px 10px;border-bottom:1px solid var(--line-strong);}
+  .cost-summary-table td{padding:10px 10px;border-bottom:1px solid var(--line);}
+  .cost-summary-table th.num{text-align:right;}
+  .cost-summary-table td.num{text-align:right;font-family:'IBM Plex Mono',monospace;}
+  .cost-figure{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;}
+  .delta-pill{font-family:'IBM Plex Mono',monospace;font-size:11.5px;padding:2px 7px;border-radius:10px;}
+  .delta-pill.down{background:var(--good-soft);color:var(--good);}
+  .delta-pill.up{background:var(--bad-soft);color:var(--bad);}
+  .delta-pill.flat{background:var(--surface-alt);color:var(--ink-soft);}
+
+  .foot-note{font-size:11.5px;color:var(--ink-soft);margin-top:10px;}
+  .section-head-row{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:2px;}
+  .gen-image-btn{white-space:nowrap;flex-shrink:0;}
+  body.capturing nav.tabs,
+  body.capturing .gen-image-btn,
+  body.capturing #add-comp-btn,
+  body.capturing #add-analysis-btn,
+  body.capturing #add-cost-material-btn,
+  body.capturing .icon-btn,
+  body.capturing .edit-actions,
+  body.capturing .save-flash{ display:none !important; }
+  body.capturing .card{ box-shadow:none; }
+  body.capturing .app{ max-width:none !important; }
+  .save-flash{position:fixed;bottom:18px;right:18px;font-size:11.5px;color:#fff;background:var(--good);padding:7px 14px;border-radius:20px;font-family:'IBM Plex Mono',monospace;opacity:0;transition:opacity .3s;pointer-events:none;}
+  .save-flash.show{opacity:1;}
+  .field-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .field-row > div{flex:1;min-width:150px;}
+  .edit-actions{display:flex;gap:8px;margin-top:14px;}
+
+  .graf-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;}
+  .graf-card{margin-bottom:0;}
+  .graf-row{display:flex;align-items:center;gap:10px;margin-bottom:11px;flex-wrap:wrap;}
+  .graf-row:last-child{margin-bottom:0;}
+  .graf-label{width:190px;flex-shrink:0;font-size:12.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .graf-bar-track{flex:1;min-width:110px;background:var(--surface-alt);border-radius:2px;height:24px;position:relative;display:flex;align-items:center;overflow:hidden;}
+  .graf-bar{height:100%;border-radius:2px;transition:width .3s;}
+  .graf-bar.branco{background:var(--branco);}
+  .graf-bar.teste{background:var(--accent);}
+  .graf-value{margin-left:auto;padding-left:8px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink);white-space:nowrap;}
+  .graf-empty{color:var(--ink-soft);font-size:11.5px;font-style:italic;}
+  .graf-card h3{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header class="top">
+    <div class="brand">
+      <h1>Teste de substituição de clínquer</h1>
+      <div class="plant-line">Moagem de cimento · Moinho de Cimento 02</div>
+    </div>
+    <div class="kiln-mark">M02</div>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="composicoes" class="active">Composições &amp; conchas</button>
+    <button data-tab="analises">Branco × Teste</button>
+    <button data-tab="graficos">Gráficos comparativos</button>
+    <button data-tab="custos">Custos</button>
+  </nav>
+
+  <!-- ===================== TAB: COMPOSIÇÕES ===================== -->
+  <section id="tab-composicoes" class="tab-panel active">
+    <div class="section-head-row">
+      <div class="section-head">
+        <h2>Composições de dosagem</h2>
+        <p>Cada composição é registrada individualmente: a composição real (branco) fica fixa, e cada teste que você preencher também fica salvo e visível, lado a lado. Use "Editar" para alterar algo depois de registrado.</p>
+      </div>
+      <button class="btn secondary gen-image-btn" id="gen-img-composicoes">Gerar imagem para impressão</button>
+    </div>
+
+    <div class="card" id="comp-compare-card">
+      <div class="card-head">
+        <h3 style="font-size:15px;">Comparativo entre composições</h3>
+        <button class="btn ghost small gen-image-btn" id="gen-img-comparativo">Gerar imagem deste comparativo</button>
+      </div>
+      <div id="comp-compare-container"></div>
+    </div>
+
+    <div id="comp-list"></div>
+    <button class="btn accent" id="add-comp-btn">+ Nova composição</button>
+  </section>
+
+  <!-- ===================== TAB: ANÁLISES ===================== -->
+  <section id="tab-analises" class="tab-panel">
+    <div class="section-head-row">
+      <div class="section-head">
+        <h2>Análise química e física — branco × teste</h2>
+        <p>Registre a coleta do branco e, separadamente, a coleta de cada teste. Cada linha registrada pode ser editada ou excluída depois.</p>
+      </div>
+      <button class="btn secondary gen-image-btn" id="gen-img-analises">Gerar imagem para impressão</button>
+    </div>
+    <div class="toolbar">
+      <div class="toolbar-left">
+        <label style="margin-bottom:0;">Referência (branco)&nbsp;
+          <select id="baseline-select" class="baseline-select"></select>
+        </label>
+      </div>
+      <button class="btn accent" id="add-analysis-btn">+ Registrar coleta</button>
+    </div>
+    <div id="analysis-table-wrap"></div>
+  </section>
+
+  <!-- ===================== TAB: GRÁFICOS ===================== -->
+  <section id="tab-graficos" class="tab-panel">
+    <div class="section-head-row">
+      <div class="section-head">
+        <h2>Gráficos comparativos — branco × teste</h2>
+        <p>Comparação visual entre o branco (referência selecionada na aba "Branco × Teste") e a coleta mais recente de cada teste, para os indicadores: Perda ao fogo, R.I., Finura #325 e resistências à compressão de 1, 3, 7 e 28 dias.</p>
+      </div>
+      <button class="btn secondary gen-image-btn" id="gen-img-graficos">Gerar imagem para impressão</button>
+    </div>
+    <div id="graficos-container"></div>
+  </section>
+
+  <!-- ===================== TAB: CUSTOS ===================== -->
+  <section id="tab-custos" class="tab-panel">
+    <div class="section-head-row">
+      <div class="section-head">
+        <h2>Custo por material</h2>
+        <p>Valores em R$ por tonelada de material. Preencha a escória e o aditivo assim que os custos forem definidos — os cimentos serão recalculados automaticamente.</p>
+      </div>
+      <button class="btn secondary gen-image-btn" id="gen-img-custos">Gerar imagem para impressão</button>
+    </div>
+    <div class="card">
+      <div class="table-wrap" style="overflow-x:visible;">
+        <table class="cost-table" id="cost-materials-table"></table>
+      </div>
+      <button class="btn ghost small" id="add-cost-material-btn" style="margin-top:10px;">+ Adicionar material</button>
+    </div>
+
+    <div class="section-head" style="margin-top:24px;">
+      <h2 style="font-size:16px;">Aditivo de moagem</h2>
+      <p>Dosado por tonelada de cimento, não como % da mistura — por isso entra separado dos demais materiais.</p>
+    </div>
+    <div class="card" id="aditivo-block"></div>
+
+    <div class="section-head" style="margin-top:28px;">
+      <h2>Custo por tonelada de cimento</h2>
+      <p>Calculado a partir do percentual de cada material em cada composição registrada.</p>
+    </div>
+    <div class="card">
+      <table class="cost-summary-table" id="cost-summary-table"></table>
+    </div>
+  </section>
+
+  <div class="save-flash" id="save-flash">salvo</div>
+</div>
+
+<script>
+/* ============================================================
+   STATE + STORAGE
+============================================================ */
+const STORAGE_KEYS = { comps:'moagem:composicoes', analises:'moagem:analises', custos:'moagem:custos-materiais' };
+let state = { composicoes: [], analises: [], custos: {} };
+let saveTimers = {};
+
+// UI-only (not persisted): which cards/rows are currently being edited, and
+// snapshots to restore on "Cancelar", and which ones are brand-new/unsaved.
+let editingComp = new Set();
+let compSnapshots = {};
+let newComps = new Set();
+
+let editingAnalysis = new Set();
+let analysisSnapshots = {};
+let newAnalyses = new Set();
+
+let costDetailExpanded = new Set();
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function clone(o){ return JSON.parse(JSON.stringify(o)); }
+
+async function loadAll(){
+  state.composicoes = await loadKey(STORAGE_KEYS.comps, defaultComposicoes());
+  state.analises   = await loadKey(STORAGE_KEYS.analises, []);
+  state.custos     = await loadKey(STORAGE_KEYS.custos, defaultCustos());
+  if(!state.custos.materiais){
+    // migrate from older flat structure { key: {label,valor} } to { materiais:{...}, aditivoDosagemGT, aditivoCustoKg }
+    const old = state.custos;
+    state.custos = defaultCustos();
+    state.custos.materiais = old;
+    delete state.custos.materiais['aditivo de moagem'];
+  }
+  renderAll();
+}
+async function loadKey(key, fallback){
+  try{
+    const res = await window.storage.get(key, false);
+    if(res && res.value) return JSON.parse(res.value);
+    return fallback;
+  }catch(e){ return fallback; }
+}
+function persist(key, value){
+  clearTimeout(saveTimers[key]);
+  saveTimers[key] = setTimeout(async ()=>{
+    try{ await window.storage.set(key, JSON.stringify(value), false); flashSaved(); }
+    catch(e){ console.error('storage error', e); }
+  }, 250);
+}
+function flashSaved(){
+  const el = document.getElementById('save-flash');
+  el.classList.add('show');
+  clearTimeout(flashSaved._t);
+  flashSaved._t = setTimeout(()=>el.classList.remove('show'), 900);
+}
+function saveComps(){ persist(STORAGE_KEYS.comps, state.composicoes); }
+function saveAnalises(){ persist(STORAGE_KEYS.analises, state.analises); }
+function saveCustos(){ persist(STORAGE_KEYS.custos, state.custos); }
+
+/* ============================================================
+   DEFAULTS
+============================================================ */
+function defaultComposicoes(){
+  return [{
+    id: uid(),
+    nome: 'CP II-F-32 — atual',
+    tipo: 'branco',
+    data: new Date().toISOString().slice(0,10),
+    usaAditivo: true,
+    materiais: [
+      { id: uid(), nome:'Clínquer', role:'clinquer', pct:62.49, densidade:null, umidade:null },
+      { id: uid(), nome:'Gipsita',  role:'gipsita',  pct:5.00,  densidade:null, umidade:null },
+      { id: uid(), nome:'Calcário', role:'calcario', pct:32.51, densidade:1.39, umidade:1.03 },
+    ]
+  }];
+}
+function defaultCustos(){
+  return {
+    materiais: {
+      'clínquer': { label:'Clínquer', valor:325.00 },
+      'gipsita':  { label:'Gipsita',  valor:215.53 },
+      'pozolana': { label:'Pozolana', valor:164.05 },
+      'escória':  { label:'Escória',  valor:165.34 },
+      'calcário': { label:'Calcário', valor:84.43 },
+    },
+    aditivoDosagemGT: 650,
+    aditivoCustoKg: 5.00,
+  };
+}
+function analysisFieldDefs(){
+  return {
+    quimica: [
+      {k:'perdaFogo', label:'Perda ao fogo', unit:'%'},
+      {k:'sio2', label:'SiO2', unit:'%'},
+      {k:'al2o3', label:'Al2O3', unit:'%'},
+      {k:'fe2o3', label:'Fe2O3', unit:'%'},
+      {k:'cao', label:'CaO', unit:'%'},
+      {k:'mgo', label:'MgO', unit:'%'},
+      {k:'so3', label:'SO3', unit:'%'},
+      {k:'ri', label:'R.I.', unit:'%'},
+      {k:'co2', label:'CO2', unit:'%'},
+      {k:'caoLivre', label:'CaO livre', unit:'%'},
+      {k:'caso4', label:'CaSO4', unit:'%'},
+      {k:'fecha', label:'Fecha', unit:'%'},
+      {k:'mat', label:'Mat.', unit:''},
+    ],
+    finura: [
+      {k:'f200', label:'#200', unit:'%'},
+      {k:'f325', label:'#325', unit:'%'},
+      {k:'blaine', label:'Blaine', unit:'m2/kg'},
+    ],
+    fisica: [
+      {k:'massaEspec', label:'Massa espec.', unit:'g/cm3'},
+      {k:'consNorm', label:'Cons. norm.', unit:'%'},
+      {k:'pegaInicio', label:'Início', unit:'h'},
+      {k:'pegaFim', label:'Fim', unit:'h'},
+      {k:'expansao', label:'Expans. quente', unit:'mm'},
+      {k:'r1mpa', label:'1 dia MPa', unit:'MPa'},
+      {k:'r1drm', label:'1 dia DRM', unit:''},
+      {k:'r3mpa', label:'3 dias MPa', unit:'MPa'},
+      {k:'r3drm', label:'3 dias DRM', unit:''},
+      {k:'r7mpa', label:'7 dias MPa', unit:'MPa'},
+      {k:'r7drm', label:'7 dias DRM', unit:''},
+      {k:'r28mpa', label:'28 dias MPa', unit:'MPa'},
+      {k:'r28drm', label:'28 dias DRM', unit:''},
+    ]
+  };
+}
+function allFieldKeys(){ const d = analysisFieldDefs(); return [].concat(d.quimica, d.finura, d.fisica); }
+
+/* ============================================================
+   TABS
+============================================================ */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab === 'analises') renderAnalysisTable();
+    if(btn.dataset.tab === 'graficos') renderGraficos();
+    if(btn.dataset.tab === 'custos') renderCustos();
+  });
+});
+
+function renderAll(){
+  renderComposicoes();
+  renderBaselineSelect();
+  renderAnalysisTable();
+  renderGraficos();
+  renderCustos();
+}
+
+/* ============================================================
+   COMPOSIÇÕES — view mode (registered, read-only) + edit mode
+============================================================ */
+function renderComposicoes(){
+  const wrap = document.getElementById('comp-list');
+  wrap.innerHTML = '';
+  if(state.composicoes.length === 0){
+    wrap.innerHTML = '<div class="empty">Nenhuma composição registrada ainda.</div>';
+    renderCompComparison();
+    return;
+  }
+  state.composicoes.forEach(comp=>{
+    wrap.appendChild(editingComp.has(comp.id) ? renderCompEditCard(comp) : renderCompViewCard(comp));
+  });
+  renderCompComparison();
+}
+
+function calcCompTotal(comp){
+  return comp.materiais.reduce((s,m)=>s + (parseFloat(m.pct)||0), 0);
+}
+
+function renderCompViewCard(comp){
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.dataset.compId = comp.id;
+  const total = calcCompTotal(comp);
+
+  let rows = comp.materiais.map(m=>{
+    const dens = (m.role==='clinquer'||m.role==='gipsita') ? '—' : (m.densidade ?? '—');
+    const umid = (m.role==='clinquer'||m.role==='gipsita') ? '—' : (m.umidade!=null ? m.umidade : '—');
+    return `<tr><td>${escapeHtml(m.nome)}</td><td class="num">${(parseFloat(m.pct)||0).toFixed(2)}%</td><td class="num">${dens}</td><td class="num">${umid}</td></tr>`;
+  }).join('');
+
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-title-row">
+        <h3 style="font-size:15px;">${escapeHtml(comp.nome)}</h3>
+        <span class="badge ${comp.tipo==='branco'?'branco':'teste'}">${comp.tipo==='branco'?'Branco — registrado':'Teste — registrado'}</span>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);">${formatDate(comp.data)}</span>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="icon-btn" data-role="comp-edit">Editar</button>
+        <button class="icon-btn danger" data-role="comp-delete">Excluir</button>
+      </div>
+    </div>
+    <table class="mat-table view">
+      <thead><tr><th>Material</th><th class="num">% na mistura</th><th class="num">Densidade (kg/m3)</th><th class="num">Umidade (%)</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="pct-total"><span>Total: </span><strong class="${Math.abs(total-100)<0.05?'ok':'warn'}">${total.toFixed(2)}%</strong></div>
+    <div data-role="scoop-container"></div>
+  `;
+
+  card.querySelector('[data-role=comp-edit]').addEventListener('click', ()=>{
+    compSnapshots[comp.id] = clone(comp);
+    editingComp.add(comp.id);
+    renderComposicoes();
+  });
+  card.querySelector('[data-role=comp-delete]').addEventListener('click', ()=>{
+    if(!confirm(`Excluir a composição "${comp.nome}"? Coletas de análise associadas a ela perderão a referência.`)) return;
+    state.composicoes = state.composicoes.filter(c=>c.id!==comp.id);
+    saveComps(); renderComposicoes(); renderBaselineSelect(); renderAnalysisTable(); renderGraficos(); renderCustos();
+  });
+
+  renderScoopBox(card.querySelector('[data-role=scoop-container]'), comp);
+  return card;
+}
+
+function renderCompEditCard(comp){
+  const card = document.createElement('div');
+  card.className = 'card editing';
+  card.dataset.compId = comp.id;
+  const total = calcCompTotal(comp);
+
+  card.innerHTML = `
+    <div class="card-head">
+      <div class="card-title-row">
+        <span class="badge editmode">Editando</span>
+      </div>
+    </div>
+    <div class="field-row">
+      <div><label>Nome da composição</label><input type="text" value="${escapeHtml(comp.nome)}" data-role="comp-nome"/></div>
+      <div><label>Tipo</label>
+        <select data-role="comp-tipo">
+          <option value="branco" ${comp.tipo==='branco'?'selected':''}>Branco (composição real)</option>
+          <option value="teste" ${comp.tipo==='teste'?'selected':''}>Teste</option>
+        </select>
+      </div>
+      <div><label>Data</label><input type="date" value="${comp.data}" data-role="comp-data"/></div>
+    </div>
+
+    <table class="mat-table">
+      <thead><tr><th>Material</th><th class="num">% na mistura</th><th class="num">Densidade (kg/m3)</th><th class="num">Umidade (%)</th><th></th></tr></thead>
+      <tbody data-role="mat-body"></tbody>
+    </table>
+    <div class="pct-total" data-role="pct-total-wrap"></div>
+    <button class="btn ghost small" data-role="add-material">+ Adicionar material substituto</button>
+
+    <div data-role="scoop-container"></div>
+
+    <div class="edit-actions">
+      <button class="btn accent" data-role="comp-save">Salvar composição</button>
+      <button class="btn secondary" data-role="comp-cancel">Cancelar</button>
+    </div>
+  `;
+
+  function updatePctTotal(){
+    const t = calcCompTotal(comp);
+    const wrap = card.querySelector('[data-role=pct-total-wrap]');
+    wrap.innerHTML = `<span>Total: </span><strong class="${Math.abs(t-100)<0.05?'ok':'warn'}">${t.toFixed(2)}%</strong> ${Math.abs(t-100)>=0.05 ? '<span class="warn">— ajuste para somar 100%</span>' : '<span class="ok">— fecha em 100%</span>'}`;
+  }
+  function updateScoop(){ renderScoopBox(card.querySelector('[data-role=scoop-container]'), comp); }
+
+  const tbody = card.querySelector('[data-role=mat-body]');
+  function renderMatRows(){
+    tbody.innerHTML = '';
+    comp.materiais.forEach(mat=> tbody.appendChild(renderMaterialEditRow(comp, mat, updatePctTotal, updateScoop, renderMatRows)));
+  }
+  renderMatRows();
+  updatePctTotal();
+  updateScoop();
+
+  card.querySelector('[data-role=comp-nome]').addEventListener('input', e=>{ comp.nome = e.target.value; });
+  card.querySelector('[data-role=comp-tipo]').addEventListener('change', e=>{ comp.tipo = e.target.value; });
+  card.querySelector('[data-role=comp-data]').addEventListener('change', e=>{ comp.data = e.target.value; });
+  card.querySelector('[data-role=add-material]').addEventListener('click', ()=>{
+    comp.materiais.push({ id:uid(), nome:'Novo material', role:'aditivo', pct:0, densidade:1.20, umidade:0 });
+    renderMatRows(); updatePctTotal(); updateScoop();
+  });
+
+  card.querySelector('[data-role=comp-save]').addEventListener('click', ()=>{
+    const t = calcCompTotal(comp);
+    if(Math.abs(t-100) >= 0.05){
+      if(!confirm(`O total está em ${t.toFixed(2)}%, não 100%. Salvar assim mesmo?`)) return;
+    }
+    editingComp.delete(comp.id);
+    newComps.delete(comp.id);
+    delete compSnapshots[comp.id];
+    saveComps();
+    renderComposicoes(); renderBaselineSelect(); renderAnalysisTable(); renderCustos();
+  });
+  card.querySelector('[data-role=comp-cancel]').addEventListener('click', ()=>{
+    if(newComps.has(comp.id)){
+      state.composicoes = state.composicoes.filter(c=>c.id!==comp.id);
+      newComps.delete(comp.id);
+    } else if(compSnapshots[comp.id]){
+      const idx = state.composicoes.findIndex(c=>c.id===comp.id);
+      if(idx>-1) state.composicoes[idx] = compSnapshots[comp.id];
+    }
+    editingComp.delete(comp.id);
+    delete compSnapshots[comp.id];
+    renderComposicoes();
+  });
+
+  return card;
+}
+
+function renderMaterialEditRow(comp, mat, updatePctTotal, updateScoop, rerenderRows){
+  const tr = document.createElement('tr');
+  const isFixed = mat.role === 'clinquer' || mat.role === 'gipsita';
+  const showDensUmid = !isFixed;
+
+  tr.innerHTML = `
+    <td>${isFixed
+        ? `<span style="color:var(--ink-soft);">${escapeHtml(mat.nome)}</span>`
+        : `<input type="text" value="${escapeHtml(mat.nome)}" data-role="mat-nome" class="row-name-input"/>`}
+    </td>
+    <td class="num"><input type="number" step="0.01" value="${mat.pct}" data-role="mat-pct" style="text-align:right;"/></td>
+    <td class="num">${showDensUmid ? `<input type="number" step="0.01" value="${mat.densidade ?? ''}" data-role="mat-dens" style="text-align:right;" placeholder="kg/m3"/>` : `<span style="color:var(--ink-soft);">—</span>`}</td>
+    <td class="num">${showDensUmid ? `<input type="number" step="0.01" value="${mat.umidade ?? ''}" data-role="mat-umid" style="text-align:right;" placeholder="%"/>` : `<span style="color:var(--ink-soft);">—</span>`}</td>
+    <td>${mat.role === 'aditivo' ? `<button class="icon-btn danger" data-role="mat-delete">Remover</button>` : ''}</td>
+  `;
+
+  const nomeInput = tr.querySelector('[data-role=mat-nome]');
+  if(nomeInput) nomeInput.addEventListener('input', e=>{ mat.nome = e.target.value; updateScoop(); });
+  tr.querySelector('[data-role=mat-pct]').addEventListener('input', e=>{
+    mat.pct = e.target.value === '' ? 0 : parseFloat(e.target.value); updatePctTotal(); updateScoop();
+  });
+  const densInput = tr.querySelector('[data-role=mat-dens]');
+  if(densInput) densInput.addEventListener('input', e=>{ mat.densidade = e.target.value===''?null:parseFloat(e.target.value); updateScoop(); });
+  const umidInput = tr.querySelector('[data-role=mat-umid]');
+  if(umidInput) umidInput.addEventListener('input', e=>{ mat.umidade = e.target.value===''?null:parseFloat(e.target.value); });
+  const delBtn = tr.querySelector('[data-role=mat-delete]');
+  if(delBtn) delBtn.addEventListener('click', ()=>{
+    comp.materiais = comp.materiais.filter(m=>m.id!==mat.id);
+    rerenderRows(); updatePctTotal(); updateScoop();
+  });
+  return tr;
+}
+
+function renderScoopBox(container, comp){
+  const calcario = comp.materiais.find(m=>m.role==='calcario');
+  const aditivos = comp.materiais.filter(m=>m.role==='aditivo');
+  container.innerHTML = '';
+  if(!calcario || aditivos.length===0){
+    container.innerHTML = `<div class="scoop-box"><h4>Proporção de conchas</h4><p class="scoop-cycle">Cadastre o calcário e ao menos um material substituto (ex.: escória, pozolana) que entre pelo mesmo alimentador para calcular a proporção de conchas.</p></div>`;
+    return;
+  }
+  aditivos.forEach(ad=>{
+    const box = document.createElement('div');
+    box.className = 'scoop-box';
+    const densCalc = parseFloat(calcario.densidade) || 0;
+    const densAd = parseFloat(ad.densidade) || 0;
+    const pctCalc = parseFloat(calcario.pct) || 0;
+    const pctAd = parseFloat(ad.pct) || 0;
+
+    if(densCalc<=0 || densAd<=0 || pctAd<=0){
+      box.innerHTML = `<h4>Calcário : ${escapeHtml(ad.nome)}</h4><p class="scoop-cycle">Informe densidade (kg/m3) e percentual de ambos os materiais para calcular.</p>`;
+      container.appendChild(box);
+      return;
+    }
+    const volCalc = pctCalc / densCalc;
+    const volAd = pctAd / densAd;
+    const ratio = volCalc / volAd;
+
+    const rows = [1,2,3,4,5,10].map(n=>`<tr><td>${n}</td><td>${(n*ratio).toFixed(1)}</td></tr>`).join('');
+
+    box.innerHTML = `
+      <h4>Calcário : ${escapeHtml(ad.nome)} — mesmo alimentador</h4>
+      <div class="scoop-ratio">${ratio.toFixed(2)} <span>: 1</span></div>
+      <div class="scoop-cycle">${ratio.toFixed(2)} concha(s) de calcário para cada 1 concha de ${escapeHtml(ad.nome).toLowerCase()}, em volume — já corrigido pela densidade de cada material.</div>
+      <table class="scoop-table">
+        <thead><tr><th>Conchas de ${escapeHtml(ad.nome)}</th><th>Conchas de calcário</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <p class="foot-note">Cálculo: (%${escapeHtml(calcario.nome)}/densidade) ÷ (%${escapeHtml(ad.nome)}/densidade). Válido apenas se a mesma concha/pá for usada para os dois materiais.</p>
+    `;
+    container.appendChild(box);
+  });
+}
+
+document.getElementById('add-comp-btn').addEventListener('click', ()=>{
+  const id = uid();
+  state.composicoes.push({
+    id,
+    nome: 'Novo teste',
+    tipo: 'teste',
+    data: new Date().toISOString().slice(0,10),
+    usaAditivo: true,
+    materiais: [
+      { id: uid(), nome:'Clínquer', role:'clinquer', pct:57.49, densidade:null, umidade:null },
+      { id: uid(), nome:'Gipsita',  role:'gipsita',  pct:5.00,  densidade:null, umidade:null },
+      { id: uid(), nome:'Calcário', role:'calcario', pct:32.51, densidade:1.39, umidade:1.03 },
+      { id: uid(), nome:'Escória',  role:'aditivo',  pct:5.00,  densidade:1.21, umidade:2.75 },
+    ]
+  });
+  newComps.add(id);
+  editingComp.add(id);
+  renderComposicoes();
+});
+
+/* ============================================================
+   COMPARATIVO ENTRE COMPOSIÇÕES (visão fixa para impressão)
+============================================================ */
+function renderCompComparison(){
+  const container = document.getElementById('comp-compare-container');
+  if(!container) return;
+  if(state.composicoes.length===0){
+    container.innerHTML = '<div class="empty">Registre ao menos uma composição para ver o comparativo.</div>';
+    return;
+  }
+
+  // Ordered row list: Clínquer, Gipsita, Calcário first (if present anywhere), then every
+  // additive name, in the order it first appears across the registered compositions.
+  const ordem = [];
+  function addRow(nome, role){
+    const key = normalizeKey(nome) + '|' + role;
+    if(!ordem.some(r=>r.key===key)) ordem.push({key, nome, role});
+  }
+  ['clinquer','gipsita','calcario'].forEach(role=>{
+    state.composicoes.forEach(c=>{
+      const m = c.materiais.find(x=>x.role===role);
+      if(m) addRow(m.nome, role);
+    });
+  });
+  state.composicoes.forEach(c=>{
+    c.materiais.filter(m=>m.role==='aditivo').forEach(m=> addRow(m.nome, 'aditivo'));
+  });
+
+  let bodyHtml = '';
+  ordem.forEach(row=>{
+    bodyHtml += `<tr><td style="text-align:left;font-weight:600;">${escapeHtml(row.nome)}</td>`;
+    state.composicoes.forEach(c=>{
+      const m = c.materiais.find(x=> normalizeKey(x.nome)===normalizeKey(row.nome) && x.role===row.role);
+      if(!m){ bodyHtml += '<td style="color:var(--ink-soft);">—</td>'; return; }
+      const pct = (parseFloat(m.pct)||0).toFixed(2)+'%';
+      const extra = (row.role!=='clinquer' && row.role!=='gipsita')
+        ? `<br><span style="font-size:10.5px;color:var(--ink-soft);">dens. ${m.densidade ?? '—'} · umid. ${m.umidade ?? '—'}%</span>`
+        : '';
+      bodyHtml += `<td><strong>${pct}</strong>${extra}</td>`;
+    });
+    bodyHtml += '</tr>';
+  });
+  // total row
+  bodyHtml += '<tr style="background:var(--surface-alt);"><td style="text-align:left;font-weight:700;">Total</td>';
+  state.composicoes.forEach(c=>{
+    const t = calcCompTotal(c);
+    bodyHtml += `<td style="font-weight:700;" class="${Math.abs(t-100)<0.05?'':'delta up'}">${t.toFixed(2)}%</td>`;
+  });
+  bodyHtml += '</tr>';
+
+  const html = '<div class="table-wrap"><table class="analysis" style="min-width:0;">'
+       + '<thead><tr class="group"><th>Material</th>'
+       + state.composicoes.map(c=>`<th>${escapeHtml(c.nome)}<br><span style="font-weight:400;text-transform:none;font-size:10px;opacity:.85;">${c.tipo==='branco'?'branco':'teste'} · ${formatDate(c.data)}</span></th>`).join('')
+       + '</tr></thead><tbody>' + bodyHtml + '</tbody></table></div>';
+
+  container.innerHTML = html;
+}
+function renderBaselineSelect(){
+  const sel = document.getElementById('baseline-select');
+  const current = sel.value;
+  sel.innerHTML = '';
+  const brancoAnalyses = state.analises.filter(a=>{
+    const comp = state.composicoes.find(c=>c.id===a.compId);
+    return comp && comp.tipo === 'branco';
+  });
+  if(brancoAnalyses.length===0){
+    sel.innerHTML = '<option value="">Nenhuma coleta de branco registrada</option>';
+    return;
+  }
+  brancoAnalyses.forEach(a=>{
+    const comp = state.composicoes.find(c=>c.id===a.compId);
+    const opt = document.createElement('option');
+    opt.value = a.id;
+    opt.textContent = `${formatDate(a.periodo)} — ${comp ? comp.nome : '—'}`;
+    sel.appendChild(opt);
+  });
+  if(current && [...sel.options].some(o=>o.value===current)) sel.value = current;
+}
+document.getElementById('baseline-select').addEventListener('change', ()=>{ renderAnalysisTable(true); renderGraficos(); });
+
+document.getElementById('add-analysis-btn').addEventListener('click', ()=>{
+  if(state.composicoes.length===0){ alert('Registre uma composição primeiro, na aba "Composições & conchas".'); return; }
+  const id = uid();
+  const entry = { id, compId: state.composicoes[0].id, periodo: new Date().toISOString().slice(0,10) };
+  allFieldKeys().forEach(f=>entry[f.k] = '');
+  state.analises.push(entry);
+  newAnalyses.add(id);
+  editingAnalysis.add(id);
+  renderAnalysisTable();
+});
+
+function renderAnalysisTable(keepScroll){
+  const wrap = document.getElementById('analysis-table-wrap');
+  renderBaselineSelect();
+  if(state.analises.length===0){
+    wrap.innerHTML = '<div class="empty">Nenhuma coleta registrada. Clique em "+ Registrar coleta" para lançar o branco ou um teste.</div>';
+    return;
+  }
+  const defs = analysisFieldDefs();
+  const baselineId = document.getElementById('baseline-select').value;
+
+  let html = '<div class="table-wrap"><table class="analysis"><thead>';
+  html += '<tr class="group"><th rowspan="3">Dia / período</th><th rowspan="3">Composição</th>';
+  html += `<th colspan="${defs.quimica.length}">Análise química</th>`;
+  html += `<th colspan="${defs.finura.length}">Finura</th>`;
+  html += `<th colspan="${defs.fisica.length}">Análise física</th>`;
+  html += '<th rowspan="3">Ações</th></tr>';
+  html += '<tr class="sub">';
+  defs.quimica.forEach(f=>html+=`<th>${f.label}</th>`);
+  defs.finura.forEach(f=>html+=`<th>${f.label}</th>`);
+  defs.fisica.forEach(f=>html+=`<th>${f.label}</th>`);
+  html += '</tr><tr class="unit">';
+  defs.quimica.forEach(f=>html+=`<th>${f.unit}</th>`);
+  defs.finura.forEach(f=>html+=`<th>${f.unit}</th>`);
+  defs.fisica.forEach(f=>html+=`<th>${f.unit}</th>`);
+  html += '</tr></thead><tbody id="analysis-tbody"></tbody></table></div>';
+  wrap.innerHTML = html;
+
+  const tbody = document.getElementById('analysis-tbody');
+  state.analises.forEach(entry=>{
+    tbody.appendChild(editingAnalysis.has(entry.id)
+      ? renderAnalysisEditRow(entry, defs, baselineId)
+      : renderAnalysisViewRow(entry, defs, baselineId));
+  });
+}
+
+function renderAnalysisViewRow(entry, defs, baselineId){
+  const comp = state.composicoes.find(c=>c.id===entry.compId);
+  const isBranco = comp && comp.tipo === 'branco';
+  const tr = document.createElement('tr');
+  tr.className = isBranco ? 'row-branco' : 'row-teste';
+
+  let html = `<td class="id-cell">${formatDate(entry.periodo)}</td>`;
+  html += `<td class="id-cell">${comp ? escapeHtml(comp.nome) : '<span style="color:var(--bad);">composição removida</span>'} <span class="badge ${isBranco?'branco':'teste'}" style="margin-left:4px;">${isBranco?'branco':'teste'}</span></td>`;
+  [].concat(defs.quimica, defs.finura, defs.fisica).forEach(f=>{
+    const v = entry[f.k];
+    html += `<td>${(v===''||v===undefined||v===null)?'—':v}</td>`;
+  });
+  html += `<td class="actions-cell">
+      ${baselineId===entry.id ? '<span class="badge branco">Referência</span>' : ''}
+      <button class="icon-btn" data-role="row-edit">Editar</button>
+      <button class="icon-btn danger" data-role="row-delete">Excluir</button>
+    </td>`;
+  tr.innerHTML = html;
+
+  tr.querySelector('[data-role=row-edit]').addEventListener('click', ()=>{
+    analysisSnapshots[entry.id] = clone(entry);
+    editingAnalysis.add(entry.id);
+    renderAnalysisTable();
+  });
+  tr.querySelector('[data-role=row-delete]').addEventListener('click', ()=>{
+    if(!confirm('Excluir esta coleta registrada?')) return;
+    state.analises = state.analises.filter(a=>a.id!==entry.id);
+    saveAnalises(); renderAnalysisTable(); renderGraficos();
+  });
+  return tr;
+}
+
+function renderAnalysisEditRow(entry, defs, baselineId){
+  const tr = document.createElement('tr');
+  tr.className = 'is-editing';
+
+  let html = `<td class="id-cell"><input type="date" value="${entry.periodo||''}" data-role="periodo" style="width:130px;"/></td>`;
+  html += `<td class="id-cell"><select data-role="comp-select" style="width:180px;">`;
+  state.composicoes.forEach(c=>{
+    html += `<option value="${c.id}" ${c.id===entry.compId?'selected':''}>${escapeHtml(c.nome)} ${c.tipo==='branco'?'(branco)':'(teste)'}</option>`;
+  });
+  html += `</select></td>`;
+  [].concat(defs.quimica, defs.finura, defs.fisica).forEach(f=>{
+    html += `<td><input type="number" step="0.01" data-role="field" data-key="${f.k}" value="${entry[f.k] ?? ''}"/></td>`;
+  });
+  html += `<td class="actions-cell">
+      <button class="icon-btn" data-role="row-save">Salvar</button>
+      <button class="icon-btn danger" data-role="row-cancel">Cancelar</button>
+    </td>`;
+  tr.innerHTML = html;
+
+  tr.querySelector('[data-role=periodo]').addEventListener('input', e=>{ entry.periodo=e.target.value; });
+  tr.querySelector('[data-role=comp-select]').addEventListener('change', e=>{ entry.compId=e.target.value; });
+  tr.querySelectorAll('[data-role=field]').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      entry[e.target.dataset.key] = e.target.value === '' ? '' : parseFloat(e.target.value);
+    });
+  });
+  tr.querySelector('[data-role=row-save]').addEventListener('click', ()=>{
+    editingAnalysis.delete(entry.id);
+    newAnalyses.delete(entry.id);
+    delete analysisSnapshots[entry.id];
+    saveAnalises();
+    renderAnalysisTable();
+    renderGraficos();
+  });
+  tr.querySelector('[data-role=row-cancel]').addEventListener('click', ()=>{
+    if(newAnalyses.has(entry.id)){
+      state.analises = state.analises.filter(a=>a.id!==entry.id);
+      newAnalyses.delete(entry.id);
+    } else if(analysisSnapshots[entry.id]){
+      const idx = state.analises.findIndex(a=>a.id===entry.id);
+      if(idx>-1) state.analises[idx] = analysisSnapshots[entry.id];
+    }
+    editingAnalysis.delete(entry.id);
+    delete analysisSnapshots[entry.id];
+    renderAnalysisTable();
+  });
+  return tr;
+}
+
+/* ============================================================
+   GRÁFICOS COMPARATIVOS — branco × teste
+============================================================ */
+function graficosFieldDefs(){
+  return [
+    {k:'perdaFogo', label:'Perda ao fogo', unit:'%'},
+    {k:'ri', label:'R.I. (resíduo insolúvel)', unit:'%'},
+    {k:'f325', label:'Finura #325', unit:'%'},
+    {k:'r1mpa', label:'Resistência 1 dia', unit:'MPa'},
+    {k:'r3mpa', label:'Resistência 3 dias', unit:'MPa'},
+    {k:'r7mpa', label:'Resistência 7 dias', unit:'MPa'},
+    {k:'r28mpa', label:'Resistência 28 dias', unit:'MPa'},
+  ];
+}
+
+function latestEntryForComp(compId){
+  const entries = state.analises.filter(a=>a.compId===compId).slice()
+    .sort((a,b)=> (a.periodo||'').localeCompare(b.periodo||''));
+  return entries.length ? entries[entries.length-1] : null;
+}
+
+function renderGraficos(){
+  const container = document.getElementById('graficos-container');
+  if(!container) return;
+
+  const baselineId = document.getElementById('baseline-select').value;
+  const brancoEntry = state.analises.find(a=>a.id===baselineId);
+  if(!brancoEntry){
+    container.innerHTML = '<div class="empty">Selecione uma coleta de branco como referência na aba "Branco × Teste" para ver os gráficos.</div>';
+    return;
+  }
+  const brancoComp = state.composicoes.find(c=>c.id===brancoEntry.compId);
+
+  const testeEntries = state.composicoes
+    .filter(c=>c.tipo==='teste')
+    .map(comp=>{ const entry = latestEntryForComp(comp.id); return entry ? {comp, entry} : null; })
+    .filter(Boolean);
+
+  if(testeEntries.length===0){
+    container.innerHTML = '<div class="empty">Registre ao menos uma coleta de teste na aba "Branco × Teste" para comparar com o branco.</div>';
+    return;
+  }
+
+  const metrics = graficosFieldDefs();
+  let html = '<div class="graf-grid">';
+
+  metrics.forEach(m=>{
+    const bValRaw = brancoEntry[m.k];
+    const bVal = (bValRaw===''||bValRaw===undefined||bValRaw===null) ? null : parseFloat(bValRaw);
+
+    const rows = [{ nome: brancoComp ? brancoComp.nome : 'Branco', tipo:'branco', valor:(bVal!==null && !isNaN(bVal))?bVal:null }];
+    testeEntries.forEach(({comp, entry})=>{
+      const vRaw = entry[m.k];
+      const v = (vRaw===''||vRaw===undefined||vRaw===null) ? null : parseFloat(vRaw);
+      rows.push({ nome: comp.nome, tipo:'teste', valor:(v!==null && !isNaN(v))?v:null });
+    });
+
+    const validVals = rows.filter(r=>r.valor!==null).map(r=>r.valor);
+    const max = validVals.length ? Math.max(...validVals) : 0;
+
+    let rowsHtml = '';
+    rows.forEach(r=>{
+      const badge = `<span class="badge ${r.tipo}">${r.tipo==='branco'?'branco':'teste'}</span>`;
+      if(r.valor===null){
+        rowsHtml += `<div class="graf-row">
+          <div class="graf-label">${escapeHtml(r.nome)} ${badge}</div>
+          <div class="graf-bar-track"><span class="graf-empty">sem dado registrado</span></div>
+        </div>`;
+        return;
+      }
+      const pctWidth = max>0 ? Math.max((r.valor/max*100), 3) : 0;
+      let deltaTxt = '';
+      if(r.tipo==='teste' && bVal!==null && bVal!==0){
+        const delta = r.valor - bVal;
+        const deltaPct = (delta/bVal*100);
+        const sign = delta>0 ? '+' : '';
+        deltaTxt = ` <span style="color:var(--ink-soft);">(${sign}${delta.toFixed(2)} / ${sign}${deltaPct.toFixed(1)}%)</span>`;
+      }
+      rowsHtml += `<div class="graf-row">
+        <div class="graf-label">${escapeHtml(r.nome)} ${badge}</div>
+        <div class="graf-bar-track">
+          <div class="graf-bar ${r.tipo}" style="width:${pctWidth}%;"></div>
+          <span class="graf-value">${r.valor.toFixed(2)}${m.unit}${deltaTxt}</span>
+        </div>
+      </div>`;
+    });
+
+    html += `<div class="card graf-card">
+      <h3 style="font-size:15px;">${m.label} <span style="font-weight:400;color:var(--ink-soft);font-size:12px;">${m.unit ? '('+m.unit+')' : ''}</span></h3>
+      <div style="margin-top:12px;">${rowsHtml}</div>
+    </div>`;
+  });
+
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+/* ============================================================
+   CUSTOS
+============================================================ */
+function renderCustos(){
+  renderCostMaterialsTable();
+  renderAditivoBlock();
+  renderCostSummary();
+}
+
+function renderCostMaterialsTable(){
+  const table = document.getElementById('cost-materials-table');
+  let html = '<thead><tr><th>Material</th><th class="num">R$ / tonelada</th><th></th></tr></thead><tbody>';
+  Object.keys(state.custos.materiais).forEach(key=>{
+    const m = state.custos.materiais[key];
+    html += `<tr>
+      <td><input type="text" value="${escapeHtml(m.label)}" data-role="cost-label" data-key="${key}" style="border:none;background:transparent;font-weight:500;"/></td>
+      <td class="num"><input type="number" step="0.01" data-role="cost-valor" data-key="${key}" value="${m.valor ?? ''}" placeholder="a definir"/></td>
+      <td><button class="icon-btn danger" data-role="cost-delete" data-key="${key}">Remover</button></td>
+    </tr>`;
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('[data-role=cost-label]').forEach(inp=>{
+    inp.addEventListener('input', e=>{ state.custos.materiais[e.target.dataset.key].label = e.target.value; saveCustos(); renderCostSummary(); });
+  });
+  table.querySelectorAll('[data-role=cost-valor]').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const v = e.target.value === '' ? null : parseFloat(e.target.value);
+      state.custos.materiais[e.target.dataset.key].valor = v; saveCustos(); renderCostSummary();
+    });
+  });
+  table.querySelectorAll('[data-role=cost-delete]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      delete state.custos.materiais[e.target.dataset.key]; saveCustos(); renderCostMaterialsTable(); renderCostSummary();
+    });
+  });
+}
+
+document.getElementById('add-cost-material-btn').addEventListener('click', ()=>{
+  const key = 'material_' + uid();
+  state.custos.materiais[key] = { label:'Novo material', valor:null };
+  saveCustos(); renderCostMaterialsTable(); renderCostSummary();
+});
+
+function aditivoCostPerTon(){
+  const dos = parseFloat(state.custos.aditivoDosagemGT);
+  const custo = parseFloat(state.custos.aditivoCustoKg);
+  if(!dos || !custo || isNaN(dos) || isNaN(custo)) return 0;
+  return (dos/1000) * custo; // g/t -> kg/t, x R$/kg
+}
+
+function renderAditivoBlock(){
+  const el = document.getElementById('aditivo-block');
+  if(!el) return;
+  el.innerHTML = `
+    <div class="field-row" style="align-items:flex-end;">
+      <div><label>Dosagem (g por tonelada de cimento)</label><input type="number" step="1" id="aditivo-dosagem" value="${state.custos.aditivoDosagemGT ?? ''}"/></div>
+      <div><label>Custo do aditivo (R$ / kg)</label><input type="number" step="0.01" id="aditivo-custokg" value="${state.custos.aditivoCustoKg ?? ''}"/></div>
+      <div style="flex:0 0 auto;">
+        <label>Custo resultante</label>
+        <div class="cost-figure">R$ ${aditivoCostPerTon().toFixed(2)} / t cimento</div>
+      </div>
+    </div>
+    <p class="foot-note">Aplicado como valor fixo por tonelada de cimento produzido, somado ao custo de todas as composições — diferente dos demais materiais, que entram proporcionalmente ao % de cada composição.</p>
+  `;
+  document.getElementById('aditivo-dosagem').addEventListener('input', e=>{
+    state.custos.aditivoDosagemGT = e.target.value === '' ? null : parseFloat(e.target.value);
+    saveCustos(); renderAditivoBlock(); renderCostSummary();
+  });
+  document.getElementById('aditivo-custokg').addEventListener('input', e=>{
+    state.custos.aditivoCustoKg = e.target.value === '' ? null : parseFloat(e.target.value);
+    saveCustos(); renderAditivoBlock(); renderCostSummary();
+  });
+}
+
+function normalizeKey(name){ return (name||'').trim().toLowerCase(); }
+function costForMaterialName(name){
+  const key = normalizeKey(name);
+  if(state.custos.materiais[key]) return state.custos.materiais[key].valor;
+  for(const k in state.custos.materiais){
+    const label = normalizeKey(state.custos.materiais[k].label);
+    if(label && (label===key || key.includes(label) || label.includes(key))) return state.custos.materiais[k].valor;
+  }
+  return null;
+}
+
+function renderCostSummary(){
+  const table = document.getElementById('cost-summary-table');
+  if(state.composicoes.length===0){
+    table.innerHTML = '<tr><td class="empty" style="border:none;">Registre composições na primeira aba para ver o custo por tonelada.</td></tr>';
+    return;
+  }
+  const brancoRef = state.composicoes.find(c=>c.tipo==='branco');
+  let html = `<thead><tr><th>Composição</th><th style="text-align:center;">Aditivo</th><th class="num">Custo / t cimento</th><th class="num">Δ vs. branco</th><th>Materiais sem custo</th><th></th></tr></thead><tbody>`;
+
+  function calcCost(comp){
+    const usaAditivo = comp.usaAditivo !== false; // default true for compositions saved before this field existed
+    let total = usaAditivo ? aditivoCostPerTon() : 0; let missing = []; let breakdown = [];
+    comp.materiais.forEach(m=>{
+      const pct = parseFloat(m.pct)||0;
+      const cost = costForMaterialName(m.nome);
+      if(cost === null || cost === undefined || isNaN(cost)){
+        if(pct>0) missing.push(m.nome);
+        breakdown.push({nome:m.nome, pct, custoUnit:null, contrib:null});
+      } else {
+        const contrib = (pct/100) * cost;
+        total += contrib;
+        breakdown.push({nome:m.nome, pct, custoUnit:cost, contrib});
+      }
+    });
+    return { total, missing, breakdown, usaAditivo };
+  }
+  const brancoCalc = brancoRef ? calcCost(brancoRef) : null;
+
+  state.composicoes.forEach(comp=>{
+    const {total, missing, breakdown, usaAditivo} = calcCost(comp);
+    const badge = comp.tipo==='branco' ? '<span class="badge branco">Branco</span>' : '<span class="badge teste">Teste</span>';
+    let deltaHtml = '<span class="delta-pill flat">—</span>';
+    if(brancoCalc && comp.id !== (brancoRef && brancoRef.id) && missing.length===0 && brancoCalc.missing.length===0){
+      const delta = total - brancoCalc.total;
+      const pct = brancoCalc.total !== 0 ? (delta/brancoCalc.total*100) : 0;
+      const cls = delta>0.001 ? 'up' : (delta< -0.001 ? 'down' : 'flat');
+      const sign = delta>0 ? '+' : '';
+      deltaHtml = `<span class="delta-pill ${cls}">${sign}R$ ${delta.toFixed(2)} (${sign}${pct.toFixed(1)}%)</span>`;
+    }
+    html += `<tr>
+      <td>${badge} ${escapeHtml(comp.nome)}</td>
+      <td style="text-align:center;"><input type="checkbox" data-role="comp-usa-aditivo" data-comp="${comp.id}" ${usaAditivo?'checked':''} style="width:auto;accent-color:var(--accent);cursor:pointer;"/></td>
+      <td class="num"><span class="cost-figure">${missing.length>0 ? '—' : 'R$ ' + total.toFixed(2)}</span></td>
+      <td class="num">${deltaHtml}</td>
+      <td style="color:var(--bad);font-size:12px;">${missing.length>0 ? escapeHtml(missing.join(', ')) : ''}</td>
+      <td><button class="icon-btn" data-role="cost-toggle" data-comp="${comp.id}">${costDetailExpanded.has(comp.id) ? 'Ocultar' : 'Detalhar'}</button></td>
+    </tr>`;
+
+    if(costDetailExpanded.has(comp.id)){
+      let rows = breakdown.map(b=>`
+        <tr>
+          <td style="text-align:left;">${escapeHtml(b.nome)}</td>
+          <td class="num">${b.pct.toFixed(2)}%</td>
+          <td class="num">${b.custoUnit===null ? '<span style="color:var(--bad);">sem custo</span>' : 'R$ '+b.custoUnit.toFixed(2)+'/t'}</td>
+          <td class="num">${b.contrib===null ? '—' : 'R$ '+b.contrib.toFixed(2)}</td>
+        </tr>`).join('');
+      const aditivoValue = aditivoCostPerTon();
+      rows += `
+        <tr>
+          <td style="text-align:left;">Aditivo de moagem${usaAditivo ? '' : ' <span style="color:var(--ink-soft);font-size:11px;">(não incluído — desmarcado para esta composição)</span>'}</td>
+          <td class="num">${state.custos.aditivoDosagemGT ?? '—'} g/t</td>
+          <td class="num">R$ ${(parseFloat(state.custos.aditivoCustoKg)||0).toFixed(2)}/kg</td>
+          <td class="num">${usaAditivo ? 'R$ '+aditivoValue.toFixed(2) : '<span style="color:var(--ink-soft);">R$ '+aditivoValue.toFixed(2)+'</span>'}</td>
+        </tr>`;
+      html += `<tr><td colspan="6" style="padding:0;border-bottom:1px solid var(--line-strong);">
+        <table style="width:100%;border-collapse:collapse;background:var(--surface-alt);font-size:12.5px;">
+          <thead><tr>
+            <th style="text-align:left;padding:6px 10px;color:var(--ink-soft);font-weight:500;font-size:11px;text-transform:uppercase;">Material</th>
+            <th class="num" style="padding:6px 10px;color:var(--ink-soft);font-weight:500;font-size:11px;text-transform:uppercase;">% / dosagem</th>
+            <th class="num" style="padding:6px 10px;color:var(--ink-soft);font-weight:500;font-size:11px;text-transform:uppercase;">Custo unitário</th>
+            <th class="num" style="padding:6px 10px;color:var(--ink-soft);font-weight:500;font-size:11px;text-transform:uppercase;">Contribuição / t cimento</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </td></tr>`;
+    }
+  });
+  html += '</tbody>';
+  table.innerHTML = html;
+
+  table.querySelectorAll('[data-role=comp-usa-aditivo]').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const comp = state.composicoes.find(c=>c.id===e.target.dataset.comp);
+      if(comp){ comp.usaAditivo = e.target.checked; saveComps(); }
+      renderCostSummary();
+    });
+  });
+  table.querySelectorAll('[data-role=cost-toggle]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const id = e.target.dataset.comp;
+      if(costDetailExpanded.has(id)) costDetailExpanded.delete(id); else costDetailExpanded.add(id);
+      renderCostSummary();
+    });
+  });
+}
+
+/* ============================================================
+   GERAR IMAGEM PARA IMPRESSÃO
+============================================================ */
+async function generateImage(tabId, filenameBase, btnEl){
+  if(typeof html2canvas === 'undefined'){
+    alert('A biblioteca de geração de imagem não carregou. Verifique a conexão com a internet e tente novamente.');
+    return;
+  }
+  const originalLabel = btnEl.textContent;
+  btnEl.textContent = 'Gerando imagem...';
+  btnEl.disabled = true;
+
+  const el = document.getElementById(tabId);
+  const tempStyles = [];
+  function tempSet(node, prop, value){
+    if(!node) return;
+    tempStyles.push({node, prop, prev: node.style[prop]});
+    node.style[prop] = value;
+  }
+
+  document.body.classList.add('capturing');
+  // Expand any horizontally-scrolling table inside this tab so nothing is cropped
+  const wraps = el.querySelectorAll('.table-wrap');
+  wraps.forEach(w=>tempSet(w, 'overflow', 'visible'));
+  tempSet(document.querySelector('.app'), 'maxWidth', 'none');
+  tempSet(document.documentElement, 'overflowX', 'visible');
+  tempSet(document.body, 'overflowX', 'visible');
+
+  await new Promise(r=>setTimeout(r, 80));
+
+  try{
+    const canvas = await html2canvas(el, {
+      scale: 3,
+      backgroundColor: '#EAE6DD',
+      useCORS: true,
+    });
+    await new Promise(resolve=>{
+      canvas.toBlob(blob=>{
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${filenameBase}-${new Date().toISOString().slice(0,10)}.png`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(()=>URL.revokeObjectURL(url), 2000);
+        resolve();
+      }, 'image/png');
+    });
+  }catch(e){
+    console.error('Erro ao gerar imagem', e);
+    alert('Não foi possível gerar a imagem desta vez. Tente novamente.');
+  }finally{
+    tempStyles.forEach(t=>{ t.node.style[t.prop] = t.prev; });
+    document.body.classList.remove('capturing');
+    btnEl.textContent = originalLabel;
+    btnEl.disabled = false;
+  }
+}
+
+document.getElementById('gen-img-composicoes').addEventListener('click', function(){ generateImage('tab-composicoes', 'composicoes-e-conchas', this); });
+document.getElementById('gen-img-comparativo').addEventListener('click', function(){ generateImage('comp-compare-card', 'comparativo-composicoes', this); });
+document.getElementById('gen-img-analises').addEventListener('click', function(){ generateImage('tab-analises', 'branco-x-teste', this); });
+document.getElementById('gen-img-graficos').addEventListener('click', function(){ generateImage('tab-graficos', 'graficos-comparativos', this); });
+document.getElementById('gen-img-custos').addEventListener('click', function(){ generateImage('tab-custos', 'custos-cimento', this); });
+
+/* ============================================================
+   UTIL
+============================================================ */
+function escapeHtml(str){
+  return (str ?? '').toString().replace(/[&<>"']/g, s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+}
+function formatDate(iso){
+  if(!iso) return '—';
+  const parts = iso.split('-');
+  if(parts.length!==3) return iso;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+loadAll();
+</script>
+</body>
+</html>
