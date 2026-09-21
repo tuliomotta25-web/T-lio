@@ -1278,6 +1278,35 @@ function renderCostSummary(){
 /* ============================================================
    GERAR IMAGEM PARA IMPRESSÃO
 ============================================================ */
+function fitCanvasToPage(sourceCanvas){
+  const DPI = 300;
+  const MM_TO_PX = DPI / 25.4;
+  const MARGIN_MM = 10;
+  const isLandscape = sourceCanvas.width >= sourceCanvas.height;
+  const pageWmm = isLandscape ? 297 : 210; // A4
+  const pageHmm = isLandscape ? 210 : 297;
+  const pageW = Math.round(pageWmm * MM_TO_PX);
+  const pageH = Math.round(pageHmm * MM_TO_PX);
+  const margin = Math.round(MARGIN_MM * MM_TO_PX);
+
+  const maxW = pageW - margin * 2;
+  const maxH = pageH - margin * 2;
+  const fitScale = Math.min(maxW / sourceCanvas.width, maxH / sourceCanvas.height, 1);
+  const drawW = Math.round(sourceCanvas.width * fitScale);
+  const drawH = Math.round(sourceCanvas.height * fitScale);
+
+  const pageCanvas = document.createElement('canvas');
+  pageCanvas.width = pageW;
+  pageCanvas.height = pageH;
+  const ctx = pageCanvas.getContext('2d');
+  ctx.fillStyle = '#EAE6DD';
+  ctx.fillRect(0, 0, pageW, pageH);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(sourceCanvas, (pageW - drawW) / 2, (pageH - drawH) / 2, drawW, drawH);
+  return pageCanvas;
+}
+
 async function generateImage(tabId, filenameBase, btnEl){
   if(typeof html2canvas === 'undefined'){
     alert('A biblioteca de geração de imagem não carregou. Verifique a conexão com a internet e tente novamente.');
@@ -1306,11 +1335,12 @@ async function generateImage(tabId, filenameBase, btnEl){
   await new Promise(r=>setTimeout(r, 80));
 
   try{
-    const canvas = await html2canvas(el, {
+    const rawCanvas = await html2canvas(el, {
       scale: 3,
       backgroundColor: '#EAE6DD',
       useCORS: true,
     });
+    const canvas = fitCanvasToPage(rawCanvas);
     await new Promise(resolve=>{
       canvas.toBlob(blob=>{
         const url = URL.createObjectURL(blob);
