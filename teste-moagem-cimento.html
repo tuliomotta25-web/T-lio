@@ -207,7 +207,6 @@
 
   .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;}
   .toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
-  select.baseline-select{width:auto;min-width:220px;}
 
   .empty{
     padding:34px 20px;text-align:center;color:var(--ink-soft);border:1px dashed var(--line-strong);
@@ -260,6 +259,8 @@
   .graf-bar.teste{background:var(--accent);}
   .graf-value{margin-left:auto;padding-left:8px;font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink);white-space:nowrap;}
   .graf-empty{color:var(--ink-soft);font-size:11.5px;font-style:italic;}
+  .graf-group-label{font-family:'IBM Plex Mono',monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:0.04em;color:var(--ink-soft);margin:12px 0 6px;}
+  .graf-group-label:first-child{margin-top:0;}
   .graf-card h3{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;}
 </style>
 </head>
@@ -314,9 +315,7 @@
     </div>
     <div class="toolbar">
       <div class="toolbar-left">
-        <label style="margin-bottom:0;">Referência (branco)&nbsp;
-          <select id="baseline-select" class="baseline-select"></select>
-        </label>
+        <span style="font-size:12.5px;color:var(--ink-soft);max-width:520px;">Cada teste é comparado automaticamente com o branco coletado mais recentemente antes dele — sem precisar escolher uma referência.</span>
       </div>
       <button class="btn accent" id="add-analysis-btn">+ Registrar coleta</button>
     </div>
@@ -509,7 +508,6 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
 
 function renderAll(){
   renderComposicoes();
-  renderBaselineSelect();
   renderAnalysisTable();
   renderGraficos();
   renderCustos();
@@ -576,7 +574,7 @@ function renderCompViewCard(comp){
   card.querySelector('[data-role=comp-delete]').addEventListener('click', ()=>{
     if(!confirm(`Excluir a composição "${comp.nome}"? Coletas de análise associadas a ela perderão a referência.`)) return;
     state.composicoes = state.composicoes.filter(c=>c.id!==comp.id);
-    saveComps(); renderComposicoes(); renderBaselineSelect(); renderAnalysisTable(); renderGraficos(); renderCustos();
+    saveComps(); renderComposicoes(); renderAnalysisTable(); renderGraficos(); renderCustos();
   });
 
   renderScoopBox(card.querySelector('[data-role=scoop-container]'), comp);
@@ -654,7 +652,7 @@ function renderCompEditCard(comp){
     newComps.delete(comp.id);
     delete compSnapshots[comp.id];
     saveComps();
-    renderComposicoes(); renderBaselineSelect(); renderAnalysisTable(); renderCustos();
+    renderComposicoes(); renderAnalysisTable(); renderGraficos(); renderCustos();
   });
   card.querySelector('[data-role=comp-cancel]').addEventListener('click', ()=>{
     if(newComps.has(comp.id)){
@@ -777,6 +775,13 @@ function renderCompComparison(){
     return;
   }
 
+  // Branco(s) sempre primeiro, na mesma ordem de cadastro depois disso — assim o
+  // comparativo sempre lê como "branco vs. cada teste", nunca depende de quem foi cadastrado primeiro.
+  const orderedComps = state.composicoes.slice().sort((a,b)=>{
+    if(a.tipo===b.tipo) return 0;
+    return a.tipo==='branco' ? -1 : 1;
+  });
+
   // Ordered row list: Clínquer, Gipsita, Calcário first (if present anywhere), then every
   // additive name, in the order it first appears across the registered compositions.
   const ordem = [];
@@ -785,19 +790,19 @@ function renderCompComparison(){
     if(!ordem.some(r=>r.key===key)) ordem.push({key, nome, role});
   }
   ['clinquer','gipsita','calcario'].forEach(role=>{
-    state.composicoes.forEach(c=>{
+    orderedComps.forEach(c=>{
       const m = c.materiais.find(x=>x.role===role);
       if(m) addRow(m.nome, role);
     });
   });
-  state.composicoes.forEach(c=>{
+  orderedComps.forEach(c=>{
     c.materiais.filter(m=>m.role==='aditivo').forEach(m=> addRow(m.nome, 'aditivo'));
   });
 
   let bodyHtml = '';
   ordem.forEach(row=>{
     bodyHtml += `<tr><td style="text-align:left;font-weight:600;">${escapeHtml(row.nome)}</td>`;
-    state.composicoes.forEach(c=>{
+    orderedComps.forEach(c=>{
       const m = c.materiais.find(x=> normalizeKey(x.nome)===normalizeKey(row.nome) && x.role===row.role);
       if(!m){ bodyHtml += '<td style="color:var(--ink-soft);">—</td>'; return; }
       const pct = (parseFloat(m.pct)||0).toFixed(2)+'%';
@@ -810,7 +815,7 @@ function renderCompComparison(){
   });
   // total row
   bodyHtml += '<tr style="background:var(--surface-alt);"><td style="text-align:left;font-weight:700;">Total</td>';
-  state.composicoes.forEach(c=>{
+  orderedComps.forEach(c=>{
     const t = calcCompTotal(c);
     bodyHtml += `<td style="font-weight:700;" class="${Math.abs(t-100)<0.05?'':'delta up'}">${t.toFixed(2)}%</td>`;
   });
@@ -818,33 +823,27 @@ function renderCompComparison(){
 
   const html = '<div class="table-wrap"><table class="analysis" style="min-width:0;">'
        + '<thead><tr class="group"><th>Material</th>'
-       + state.composicoes.map(c=>`<th>${escapeHtml(c.nome)}<br><span style="font-weight:400;text-transform:none;font-size:10px;opacity:.85;">${c.tipo==='branco'?'branco':'teste'} · ${formatDate(c.data)}</span></th>`).join('')
+       + orderedComps.map(c=>`<th>${escapeHtml(c.nome)}<br><span style="font-weight:400;text-transform:none;font-size:10px;opacity:.85;">${c.tipo==='branco'?'branco':'teste'} · ${formatDate(c.data)}</span></th>`).join('')
        + '</tr></thead><tbody>' + bodyHtml + '</tbody></table></div>';
 
   container.innerHTML = html;
 }
-function renderBaselineSelect(){
-  const sel = document.getElementById('baseline-select');
-  const current = sel.value;
-  sel.innerHTML = '';
-  const brancoAnalyses = state.analises.filter(a=>{
+// Encontra, para uma coleta de teste, a coleta de branco mais recente registrada
+// até aquela data (o "par" automático) — cai para a coleta de branco mais antiga
+// disponível se não houver nenhuma anterior à data do teste.
+function findPairedBrancoEntry(testeEntry){
+  const brancoEntries = state.analises.filter(a=>{
     const comp = state.composicoes.find(c=>c.id===a.compId);
     return comp && comp.tipo === 'branco';
-  });
-  if(brancoAnalyses.length===0){
-    sel.innerHTML = '<option value="">Nenhuma coleta de branco registrada</option>';
-    return;
+  }).slice().sort((a,b)=>(a.periodo||'').localeCompare(b.periodo||''));
+  if(brancoEntries.length===0) return null;
+  let candidate = null;
+  for(const b of brancoEntries){
+    if((b.periodo||'') <= (testeEntry.periodo||'')) candidate = b;
+    else break;
   }
-  brancoAnalyses.forEach(a=>{
-    const comp = state.composicoes.find(c=>c.id===a.compId);
-    const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = `${formatDate(a.periodo)} — ${comp ? comp.nome : '—'}`;
-    sel.appendChild(opt);
-  });
-  if(current && [...sel.options].some(o=>o.value===current)) sel.value = current;
+  return candidate || brancoEntries[0];
 }
-document.getElementById('baseline-select').addEventListener('change', ()=>{ renderAnalysisTable(true); renderGraficos(); });
 
 document.getElementById('add-analysis-btn').addEventListener('click', ()=>{
   if(state.composicoes.length===0){ alert('Registre uma composição primeiro, na aba "Composições & conchas".'); return; }
@@ -859,13 +858,11 @@ document.getElementById('add-analysis-btn').addEventListener('click', ()=>{
 
 function renderAnalysisTable(keepScroll){
   const wrap = document.getElementById('analysis-table-wrap');
-  renderBaselineSelect();
   if(state.analises.length===0){
     wrap.innerHTML = '<div class="empty">Nenhuma coleta registrada. Clique em "+ Registrar coleta" para lançar o branco ou um teste.</div>';
     return;
   }
   const defs = analysisFieldDefs();
-  const baselineId = document.getElementById('baseline-select').value;
 
   let html = '<div class="table-wrap"><table class="analysis"><thead>';
   html += '<tr class="group"><th rowspan="3">Dia / período</th><th rowspan="3">Composição</th>';
@@ -887,25 +884,32 @@ function renderAnalysisTable(keepScroll){
   const tbody = document.getElementById('analysis-tbody');
   state.analises.forEach(entry=>{
     tbody.appendChild(editingAnalysis.has(entry.id)
-      ? renderAnalysisEditRow(entry, defs, baselineId)
-      : renderAnalysisViewRow(entry, defs, baselineId));
+      ? renderAnalysisEditRow(entry, defs)
+      : renderAnalysisViewRow(entry, defs));
   });
 }
 
-function renderAnalysisViewRow(entry, defs, baselineId){
+function renderAnalysisViewRow(entry, defs){
   const comp = state.composicoes.find(c=>c.id===entry.compId);
   const isBranco = comp && comp.tipo === 'branco';
   const tr = document.createElement('tr');
   tr.className = isBranco ? 'row-branco' : 'row-teste';
 
+  let pairNote = '';
+  if(!isBranco){
+    const paired = findPairedBrancoEntry(entry);
+    pairNote = paired
+      ? `<br><span style="font-size:10.5px;color:var(--ink-soft);">par: branco de ${formatDate(paired.periodo)}</span>`
+      : `<br><span style="font-size:10.5px;color:var(--bad);">sem branco coletado até esta data</span>`;
+  }
+
   let html = `<td class="id-cell">${formatDate(entry.periodo)}</td>`;
-  html += `<td class="id-cell">${comp ? escapeHtml(comp.nome) : '<span style="color:var(--bad);">composição removida</span>'} <span class="badge ${isBranco?'branco':'teste'}" style="margin-left:4px;">${isBranco?'branco':'teste'}</span></td>`;
+  html += `<td class="id-cell">${comp ? escapeHtml(comp.nome) : '<span style="color:var(--bad);">composição removida</span>'} <span class="badge ${isBranco?'branco':'teste'}" style="margin-left:4px;">${isBranco?'branco':'teste'}</span>${pairNote}</td>`;
   [].concat(defs.quimica, defs.finura, defs.fisica).forEach(f=>{
     const v = entry[f.k];
     html += `<td>${(v===''||v===undefined||v===null)?'—':v}</td>`;
   });
   html += `<td class="actions-cell">
-      ${baselineId===entry.id ? '<span class="badge branco">Referência</span>' : ''}
       <button class="icon-btn" data-role="row-edit">Editar</button>
       <button class="icon-btn danger" data-role="row-delete">Excluir</button>
     </td>`;
@@ -924,7 +928,7 @@ function renderAnalysisViewRow(entry, defs, baselineId){
   return tr;
 }
 
-function renderAnalysisEditRow(entry, defs, baselineId){
+function renderAnalysisEditRow(entry, defs){
   const tr = document.createElement('tr');
   tr.className = 'is-editing';
 
@@ -998,14 +1002,6 @@ function renderGraficos(){
   const container = document.getElementById('graficos-container');
   if(!container) return;
 
-  const baselineId = document.getElementById('baseline-select').value;
-  const brancoEntry = state.analises.find(a=>a.id===baselineId);
-  if(!brancoEntry){
-    container.innerHTML = '<div class="empty">Selecione uma coleta de branco como referência na aba "Branco × Teste" para ver os gráficos.</div>';
-    return;
-  }
-  const brancoComp = state.composicoes.find(c=>c.id===brancoEntry.compId);
-
   const testeEntries = state.composicoes
     .filter(c=>c.tipo==='teste')
     .map(comp=>{ const entry = latestEntryForComp(comp.id); return entry ? {comp, entry} : null; })
@@ -1016,48 +1012,84 @@ function renderGraficos(){
     return;
   }
 
+  // Agrupa cada teste com o branco coletado mais recentemente antes dele — o mesmo
+  // pareamento automático usado na aba de Análises — para que testes de rodadas
+  // diferentes sejam sempre comparados contra o branco correto daquele momento.
+  const groups = [];
+  testeEntries.forEach(te=>{
+    const brancoEntry = findPairedBrancoEntry(te.entry);
+    const key = brancoEntry ? brancoEntry.id : 'sem-par';
+    let group = groups.find(g=>g.key===key);
+    if(!group){
+      group = { key, brancoEntry, brancoComp: brancoEntry ? state.composicoes.find(c=>c.id===brancoEntry.compId) : null, testes: [] };
+      groups.push(group);
+    }
+    group.testes.push(te);
+  });
+  groups.sort((a,b)=>{
+    const da = a.brancoEntry ? (a.brancoEntry.periodo||'') : '';
+    const db = b.brancoEntry ? (b.brancoEntry.periodo||'') : '';
+    return da.localeCompare(db);
+  });
+
+  if(groups.every(g=>!g.brancoEntry)){
+    container.innerHTML = '<div class="empty">Registre ao menos uma coleta de branco na aba "Branco × Teste" para comparar com os testes.</div>';
+    return;
+  }
+
   const metrics = graficosFieldDefs();
+  const showGroupLabels = groups.length > 1;
   let html = '<div class="graf-grid">';
 
   metrics.forEach(m=>{
-    const bValRaw = brancoEntry[m.k];
-    const bVal = (bValRaw===''||bValRaw===undefined||bValRaw===null) ? null : parseFloat(bValRaw);
-
-    const rows = [{ nome: brancoComp ? brancoComp.nome : 'Branco', tipo:'branco', valor:(bVal!==null && !isNaN(bVal))?bVal:null }];
-    testeEntries.forEach(({comp, entry})=>{
-      const vRaw = entry[m.k];
-      const v = (vRaw===''||vRaw===undefined||vRaw===null) ? null : parseFloat(vRaw);
-      rows.push({ nome: comp.nome, tipo:'teste', valor:(v!==null && !isNaN(v))?v:null });
-    });
-
-    const validVals = rows.filter(r=>r.valor!==null).map(r=>r.valor);
-    const max = validVals.length ? Math.max(...validVals) : 0;
-
     let rowsHtml = '';
-    rows.forEach(r=>{
-      const badge = `<span class="badge ${r.tipo}">${r.tipo==='branco'?'branco':'teste'}</span>`;
-      if(r.valor===null){
+
+    groups.forEach(group=>{
+      const bValRaw = group.brancoEntry ? group.brancoEntry[m.k] : null;
+      const bVal = (bValRaw===''||bValRaw===undefined||bValRaw===null) ? null : parseFloat(bValRaw);
+
+      const groupRows = [];
+      if(group.brancoEntry){
+        groupRows.push({ nome: group.brancoComp ? group.brancoComp.nome : 'Branco', tipo:'branco', valor:(bVal!==null && !isNaN(bVal))?bVal:null });
+      }
+      group.testes.forEach(({comp, entry})=>{
+        const vRaw = entry[m.k];
+        const v = (vRaw===''||vRaw===undefined||vRaw===null) ? null : parseFloat(vRaw);
+        groupRows.push({ nome: comp.nome, tipo:'teste', valor:(v!==null && !isNaN(v))?v:null });
+      });
+
+      const validVals = groupRows.filter(r=>r.valor!==null).map(r=>r.valor);
+      const max = validVals.length ? Math.max(...validVals) : 0;
+
+      if(showGroupLabels){
+        rowsHtml += `<div class="graf-group-label">${group.brancoEntry ? 'Branco de ' + formatDate(group.brancoEntry.periodo) : 'Sem branco pareado'}</div>`;
+      }
+
+      groupRows.forEach(r=>{
+        const badge = `<span class="badge ${r.tipo}">${r.tipo==='branco'?'branco':'teste'}</span>`;
+        if(r.valor===null){
+          rowsHtml += `<div class="graf-row">
+            <div class="graf-label">${escapeHtml(r.nome)} ${badge}</div>
+            <div class="graf-bar-track"><span class="graf-empty">sem dado registrado</span></div>
+          </div>`;
+          return;
+        }
+        const pctWidth = max>0 ? Math.max((r.valor/max*100), 3) : 0;
+        let deltaTxt = '';
+        if(r.tipo==='teste' && bVal!==null && bVal!==0){
+          const delta = r.valor - bVal;
+          const deltaPct = (delta/bVal*100);
+          const sign = delta>0 ? '+' : '';
+          deltaTxt = ` <span style="color:var(--ink-soft);">(${sign}${delta.toFixed(2)} / ${sign}${deltaPct.toFixed(1)}%)</span>`;
+        }
         rowsHtml += `<div class="graf-row">
           <div class="graf-label">${escapeHtml(r.nome)} ${badge}</div>
-          <div class="graf-bar-track"><span class="graf-empty">sem dado registrado</span></div>
+          <div class="graf-bar-track">
+            <div class="graf-bar ${r.tipo}" style="width:${pctWidth}%;"></div>
+            <span class="graf-value">${r.valor.toFixed(2)}${m.unit}${deltaTxt}</span>
+          </div>
         </div>`;
-        return;
-      }
-      const pctWidth = max>0 ? Math.max((r.valor/max*100), 3) : 0;
-      let deltaTxt = '';
-      if(r.tipo==='teste' && bVal!==null && bVal!==0){
-        const delta = r.valor - bVal;
-        const deltaPct = (delta/bVal*100);
-        const sign = delta>0 ? '+' : '';
-        deltaTxt = ` <span style="color:var(--ink-soft);">(${sign}${delta.toFixed(2)} / ${sign}${deltaPct.toFixed(1)}%)</span>`;
-      }
-      rowsHtml += `<div class="graf-row">
-        <div class="graf-label">${escapeHtml(r.nome)} ${badge}</div>
-        <div class="graf-bar-track">
-          <div class="graf-bar ${r.tipo}" style="width:${pctWidth}%;"></div>
-          <span class="graf-value">${r.valor.toFixed(2)}${m.unit}${deltaTxt}</span>
-        </div>
-      </div>`;
+      });
     });
 
     html += `<div class="card graf-card">
