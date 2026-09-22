@@ -254,8 +254,9 @@
   .graf-row:last-child{margin-bottom:0;}
   .graf-row-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px;flex-wrap:wrap;}
   .graf-label{font-size:12.5px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
-  .graf-value{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink);white-space:nowrap;}
-  .graf-delta{color:var(--ink-soft);font-size:11px;}
+  .graf-row-right{display:flex;align-items:baseline;gap:8px;}
+  .graf-value{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink);white-space:nowrap;min-width:6.5em;text-align:right;}
+  .graf-delta{color:var(--ink-soft);font-size:11px;white-space:nowrap;}
   .graf-bar-track{background:var(--surface-alt);border-radius:2px;height:8px;position:relative;overflow:hidden;}
   .graf-bar{position:absolute;top:0;left:0;height:100%;border-radius:2px;transition:width .3s;}
   .graf-bar.branco{background:var(--branco);}
@@ -1085,12 +1086,12 @@ function renderGraficos(){
           const delta = r.valor - bVal;
           const deltaPct = (delta/bVal*100);
           const sign = delta>0 ? '+' : '';
-          deltaTxt = ` <span class="graf-delta">(${sign}${delta.toFixed(2)} / ${sign}${deltaPct.toFixed(1)}%)</span>`;
+          deltaTxt = `<span class="graf-delta">(${sign}${delta.toFixed(2)} / ${sign}${deltaPct.toFixed(1)}%)</span>`;
         }
         rowsHtml += `<div class="graf-row">
           <div class="graf-row-head">
             <span class="graf-label">${escapeHtml(r.nome)} ${badge}</span>
-            <span class="graf-value">${r.valor.toFixed(2)}${m.unit}${deltaTxt}</span>
+            <span class="graf-row-right">${deltaTxt}<span class="graf-value">${r.valor.toFixed(2)}${m.unit}</span></span>
           </div>
           <div class="graf-bar-track">
             <div class="graf-bar ${r.tipo}" style="width:${pctWidth}%;"></div>
