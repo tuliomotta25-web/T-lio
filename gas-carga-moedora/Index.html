@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Controle de Carga Moedora</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#1B1F26;
+  --panel:#22272F;
+  --panel-2:#2A3038;
+  --line:#3A414C;
+  --text:#E9E7E1;
+  --text-dim:#9AA3B0;
+  --accent:#E8871E;
+  --accent-2:#5B8DB8;
+  --ok:#5F9E76;
+  --warn:#D9A441;
+  --bad:#C1554D;
+  --font-display:'Barlow Condensed', sans-serif;
+  --font-body:'IBM Plex Sans', sans-serif;
+  --font-mono:'IBM Plex Mono', monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; background: var(--bg); }
+body { font-family: var(--font-body); color: var(--text); }
+.app { min-height:100vh; }
+
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 20px; border-bottom:1px solid var(--line); background: linear-gradient(180deg, #20242C, #1B1F26); flex-wrap: wrap; position:sticky; top:0; z-index:10; }
+.brand { display:flex; align-items:center; gap:10px; }
+.brand-mark { width:36px; height:36px; border-radius:8px; background: var(--accent); color:#1B1F26; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.brand-title { font-family: var(--font-display); font-size:19px; font-weight:700; letter-spacing:0.3px; line-height:1.1; }
+.brand-sub { font-size:11.5px; color: var(--text-dim); letter-spacing:0.2px; }
+
+.tabs { display:flex; gap:6px; background: var(--panel); padding:4px; border-radius:10px; border:1px solid var(--line); flex-wrap:wrap; }
+.tab { display:flex; align-items:center; gap:6px; background:transparent; border:none; color:var(--text-dim); font-family:var(--font-body); font-size:12.5px; font-weight:600; padding:8px 12px; border-radius:7px; cursor:pointer; transition: all .15s ease; }
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--accent); color:#1B1F26; }
+
+.content { padding:22px 24px 60px; max-width:1180px; margin:0 auto; }
+.stack { display:flex; flex-direction:column; gap:18px; }
+
+.section-head h1 { font-family: var(--font-display); font-size:26px; font-weight:700; margin:0 0 2px; letter-spacing:0.2px; }
+.section-head p { color: var(--text-dim); font-size:13px; margin:0; }
+
+.mill-block { display:flex; flex-direction:column; gap:10px; }
+.mill-block-head { display:flex; align-items:center; gap:8px; font-family: var(--font-display); font-size:18px; font-weight:700; letter-spacing:0.2px; color: var(--accent-2); }
+.pill { font-family: var(--font-body); font-size:10.5px; font-weight:600; background: var(--panel-2); border:1px solid var(--line); color: var(--text-dim); padding:2px 8px; border-radius:99px; text-transform:uppercase; letter-spacing:0.5px; }
+
+.cards-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:12px; }
+.card { background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:10px; }
+.card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+.card-title { font-weight:600; font-size:14.5px; }
+.card-sub { color: var(--text-dim); font-size:11.5px; margin-top:2px; font-family: var(--font-mono); }
+
+.metric-row { display:flex; gap:14px; }
+.metric-label { font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color: var(--text-dim); }
+.metric-value { font-family: var(--font-mono); font-size:16px; font-weight:600; }
+.metric-value.small { font-size:12.5px; }
+
+.status { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:600; padding:7px 10px; border-radius:8px; }
+.status-ok { background: rgba(95,158,118,0.15); color: var(--ok); }
+.status-warn { background: rgba(217,164,65,0.15); color: var(--warn); }
+.status-bad { background: rgba(193,85,77,0.15); color: var(--bad); }
+.status-muted { background: var(--panel-2); color: var(--text-dim); }
+.status-extra { font-weight:400; opacity:0.85; margin-left:4px; }
+
+.status-chip { font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap; }
+.status-chip.status-ok { background: rgba(95,158,118,0.18); color: var(--ok); }
+.status-chip.status-warn { background: rgba(217,164,65,0.18); color: var(--warn); }
+.status-chip.status-bad { background: rgba(193,85,77,0.18); color: var(--bad); }
+
+.empty-mini { color: var(--text-dim); font-size:12.5px; padding:10px 0; }
+
+.btn-primary { display:flex; align-items:center; justify-content:center; gap:8px; background: var(--accent); color:#1B1F26; border:none; font-family: var(--font-body); font-weight:700; font-size:13.5px; padding:12px 18px; border-radius:10px; cursor:pointer; transition: filter .15s ease; }
+.btn-primary:hover { filter: brightness(1.08); }
+.btn-primary:disabled { opacity:0.45; cursor:not-allowed; }
+.btn-wide { width:100%; }
+
+.btn-ghost { display:flex; align-items:center; gap:6px; background:transparent; border:1px dashed var(--line); color: var(--text-dim); font-size:12px; font-weight:600; padding:8px 12px; border-radius:8px; cursor:pointer; width:fit-content; margin-top:8px; }
+.btn-ghost:hover { color: var(--text); border-color: var(--accent-2); }
+
+.form-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px,1fr)); gap:12px; }
+.form-grid.tight { grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; }
+
+.field { display:flex; flex-direction:column; gap:5px; font-size:12px; }
+.field span { color: var(--text-dim); font-weight:600; letter-spacing:0.2px; }
+.field input, .field select, .field textarea {
+  background: var(--panel-2); border:1px solid var(--line); color: var(--text);
+  padding:9px 10px; border-radius:8px; font-family: var(--font-mono); font-size:13px; width:100%;
+}
+.field input:focus, .field select:focus, .field textarea:focus { outline:2px solid var(--accent-2); outline-offset:1px; }
+.field.small input { padding:7px 8px; font-size:12.5px; }
+
+.two-col { display:grid; grid-template-columns: 1.1fr 1fr; gap:16px; align-items:start; }
+@media (max-width: 860px) { .two-col { grid-template-columns: 1fr; } }
+
+.panel { background: var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; }
+.panel-title { display:flex; align-items:center; gap:7px; font-family: var(--font-display); font-size:16px; font-weight:700; margin-bottom:12px; color: var(--accent-2); }
+.panel-title-row { display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap; }
+.mill-name-input { flex:1; min-width:160px; background:transparent; border:none; border-bottom:2px solid var(--line); color: var(--text); font-family: var(--font-display); font-size:19px; font-weight:700; padding:4px 2px; }
+.mill-name-input:focus { outline:none; border-color: var(--accent); }
+.panel-title-row select { background: var(--panel-2); border:1px solid var(--line); color: var(--text-dim); font-size:11.5px; padding:6px 8px; border-radius:7px; }
+
+.alturas-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(90px,1fr)); gap:8px; }
+
+.gauge-center { display:flex; justify-content:center; margin-bottom:10px; }
+.result-list { display:flex; flex-direction:column; gap:2px; }
+.result-row { display:flex; justify-content:space-between; padding:7px 2px; border-bottom:1px solid var(--line); font-size:12.5px; gap:8px; }
+.result-row.highlight { font-weight:700; }
+.result-label { color: var(--text-dim); }
+.result-value { font-family: var(--font-mono); text-align:right; }
+.result-value.tone-bad { color: var(--bad); }
+.result-value.tone-ok { color: var(--ok); }
+
+.mix-table { margin-top:14px; border-top:1px solid var(--line); padding-top:10px; overflow-x:auto; }
+.mix-head, .mix-row { display:grid; grid-template-columns: 1fr 1fr 1fr; font-size:12px; padding:5px 2px; gap:6px; }
+.mix-head-6, .mix-row-6 { grid-template-columns: 0.7fr 0.8fr 1fr 1fr 1fr 1fr; min-width:520px; }
+.mix-head { color: var(--text-dim); font-weight:600; text-transform:uppercase; font-size:10px; letter-spacing:0.4px; }
+.mix-row { font-family: var(--font-mono); border-top:1px solid var(--line); }
+.mix-total { font-weight:700; border-top:2px solid var(--accent); color: var(--accent); }
+.mix-note { color: var(--text-dim); font-size:11px; margin-top:8px; line-height:1.4; }
+.recharge-mode-tag { display:inline-block; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color: var(--accent); background: rgba(232,135,30,0.12); padding:4px 9px; border-radius:99px; margin-bottom:10px; }
+
+.ref-note { color: var(--text-dim); font-size:12px; margin: -4px 0 12px; line-height:1.4; }
+.ref-table { display:flex; flex-direction:column; gap:6px; margin-bottom:4px; }
+.ref-head, .ref-row { display:grid; grid-template-columns: 0.8fr 1fr 1.2fr 32px; gap:8px; align-items:center; }
+.ref-head { font-size:10px; text-transform:uppercase; letter-spacing:0.4px; color: var(--text-dim); font-weight:600; padding:0 2px; }
+.ref-row input { background: var(--panel-2); border:1px solid var(--line); color: var(--text); padding:7px 9px; border-radius:7px; font-family: var(--font-mono); font-size:12.5px; }
+
+.table-wrap { overflow-x:auto; }
+.table { width:100%; border-collapse: collapse; font-size:12.5px; }
+.table th { text-align:left; color: var(--text-dim); font-weight:600; font-size:10.5px; text-transform:uppercase; letter-spacing:0.4px; padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+.table td { padding:9px 10px; border-bottom:1px solid var(--line); font-family: var(--font-mono); white-space:nowrap; }
+.table tr:hover td { background: var(--panel-2); }
+
+.icon-btn { background:transparent; border:1px solid var(--line); color: var(--text-dim); border-radius:7px; width:28px; height:28px; display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; }
+.icon-btn:hover { color: var(--text); border-color: var(--accent-2); }
+.icon-btn.danger:hover { color: var(--bad); border-color: var(--bad); }
+
+.camara-edit { border-top:1px dashed var(--line); padding-top:12px; margin-top:12px; }
+.camara-edit-head { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+.camara-name-input { flex:1; background: var(--panel-2); border:1px solid var(--line); color: var(--text); font-weight:600; font-size:13px; padding:6px 9px; border-radius:7px; }
+
+.checkbox-row { display:flex; align-items:center; gap:8px; margin-top:12px; font-size:12px; color: var(--text-dim); cursor:pointer; }
+.checkbox-row input { width:15px; height:15px; accent-color: var(--accent); cursor:pointer; }
+
+.edit-banner { display:flex; align-items:center; flex-wrap:wrap; gap:4px; background: rgba(232,135,30,0.12); border:1px solid var(--accent); color: var(--text); font-size:12.5px; font-weight:600; padding:10px 14px; border-radius:10px; }
+
+.mix-editor { margin-top:12px; }
+.mix-editor-title { font-size:11px; color: var(--text-dim); font-weight:600; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:8px; }
+.mix-editor-row { display:flex; align-items:center; gap:6px; margin-bottom:6px; font-size:12.5px; color: var(--text-dim); flex-wrap:wrap; }
+.mix-editor-row input { width:70px; background: var(--panel-2); border:1px solid var(--line); color: var(--text); padding:6px 8px; border-radius:6px; font-family: var(--font-mono); }
+
+.toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background: var(--panel-2); border:1px solid var(--accent); color: var(--text); padding:10px 18px; border-radius:10px; font-size:12.5px; font-weight:600; box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index:100; opacity:0; pointer-events:none; transition: opacity .2s ease; }
+.toast.show { opacity:1; }
+
+.chart-box { width:100%; height:280px; }
+.chart-box.short { height:240px; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" id="brand-mark"></div>
+      <div>
+        <div class="brand-title">Controle de Carga Moedora</div>
+        <div class="brand-sub">Grau de enchimento &amp; reposição de corpos moedores</div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs"></nav>
+  </header>
+  <main class="content" id="content"></main>
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+// ===========================================================================
+// Ícones (SVG inline, sem dependência externa)
+// ===========================================================================
+function icon(name, size) {
+  size = size || 15;
+  const s = 'width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"';
+  const map = {
+    gauge: '<circle cx="12" cy="12" r="10"/><path d="M12 12 L16 8"/><path d="M8 12a4 4 0 0 1 8 0"/>',
+    ruler: '<path d="M3 7h18v10H3z"/><path d="M7 7v4M11 7v4M15 7v4M19 7v4"/>',
+    history: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    factory: '<path d="M2 20h20"/><path d="M4 20V10l5 3V10l5 3V10l5 3v7"/><path d="M4 20V4h4v4"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    trash: '<path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    alert: '<path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a1.5 1.5 0 0 0 1.3 2.3h17.8a1.5 1.5 0 0 0 1.3-2.3L13.7 3.9a1.5 1.5 0 0 0-2.6 0Z"/>',
+    down: '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+    up: '<path d="M12 19V5"/><path d="m5 12 7-7 7 7"/>',
+    package: '<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+    layers: '<path d="m12.83 2.18-9.75 5.02a1 1 0 0 0 0 1.6l9.75 5.02a1 1 0 0 0 .34 0l9.75-5.02a1 1 0 0 0 0-1.6l-9.75-5.02a1 1 0 0 0-.34 0Z"/><path d="m22 17-9.17 4.72a1 1 0 0 1-.34 0L2 17"/><path d="m22 12-9.17 4.72a1 1 0 0 1-.34 0L2 12"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  };
+  return '<svg '+s+'>'+(map[name]||'')+'</svg>';
+}
+
+// ===========================================================================
+// Dados de referência / configuração inicial
+// ===========================================================================
+const SUPERFICIE_REF_PADRAO = [
+  { diam: 90, densidade: 4.59, superficie: 8.5 },
+  { diam: 80, densidade: 4.62, superficie: 9.6 },
+  { diam: 70, densidade: 4.64, superficie: 10.8 },
+  { diam: 60, densidade: 4.66, superficie: 12.75 },
+  { diam: 50, densidade: 4.71, superficie: 15.4 },
+  { diam: 40, densidade: 4.76, superficie: 19.2 },
+  { diam: 30, densidade: 4.85, superficie: 25.6 },
+];
+
+const MOINHOS_PADRAO = [
+  {
+    id: "pasta02", nome: "Moinho Pasta 02", tipo: "Pasta",
+    camaras: [
+      { id: "p02c1", nome: "1ª Câmara", diametro: 2.05, comprimento: 3.55, metaG: 28, nMedicoes: 4,
+        corposMoedores: [{ diam: 90, pct: 55 }, { diam: 60, pct: 45 }] },
+      { id: "p02c2", nome: "2ª Câmara", diametro: 2.05, comprimento: 5.64, metaG: 28, nMedicoes: 6,
+        corposMoedores: [{ diam: 50, pct: 55 }, { diam: 30, pct: 45 }] },
+    ],
+  },
+  {
+    id: "pasta03", nome: "Moinho Pasta 03", tipo: "Pasta",
+    camaras: [
+      { id: "p03c1", nome: "1ª Câmara", diametro: 2.00, comprimento: 3.54, metaG: 28, nMedicoes: 4,
+        corposMoedores: [{ diam: 90, pct: 55 }, { diam: 60, pct: 45 }] },
+      { id: "p03c2", nome: "2ª Câmara", diametro: 2.00, comprimento: 5.42, metaG: 28, nMedicoes: 6,
+        corposMoedores: [{ diam: 50, pct: 55 }, { diam: 30, pct: 45 }] },
+    ],
+  },
+  {
+    id: "combustivel", nome: "Moinho de Combustível", tipo: "Combustível",
+    camaras: [
+      { id: "cbc1", nome: "Câmara única", diametro: 2.40, comprimento: 8.96, metaG: 24, nMedicoes: 6,
+        corposMoedores: [{ diam: 70, pct: 55 }, { diam: 30, pct: 45 }] },
+    ],
+  },
+];
+
+// ===========================================================================
+// Cálculos de engenharia
+// ===========================================================================
+const calcG = (hMedio, D) => 50 - 125 * (hMedio / D - 0.5);
+const calcVi = (D, L) => (Math.PI / 4) * D * D * L;
+const calcVb = (Vi, Gpct) => (Vi * Gpct) / 100;
+const uid = () => Math.random().toString(36).slice(2, 10);
+const fmt = (n, d) => { d = d === undefined ? 2 : d; return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—'; };
+const fmtKg = (t, d) => { d = d === undefined ? 0 : d; return Number.isFinite(t) ? (t*1000).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d }) + ' kg' : '—'; };
+const todayISO = () => new Date().toISOString().slice(0,10);
+const formatDateBR = (iso) => { if (!iso) return '—'; const p = iso.split('-'); return p.length===3 ? p[2]+'/'+p[1]+'/'+p[0] : iso; };
+
+function lookupRef(ref, diam) {
+  if (!ref || !ref.length) return { densidade: 4.7, superficie: 0 };
+  const exato = ref.find((r) => Number(r.diam) === Number(diam));
+  if (exato) return exato;
+  const maisProximo = ref.reduce((a, b) => (Math.abs(b.diam - diam) < Math.abs(a.diam - diam) ? b : a));
+  return maisProximo;
+}
+
+function statusFromG(Gcalc, metaG) {
+  const diff = Gcalc - metaG;
+  if (diff >= -0.5) return { label: 'No alvo', tone: 'ok' };
+  if (diff >= -3) return { label: 'Atenção', tone: 'warn' };
+  return { label: 'Recarga necessária', tone: 'bad' };
+}
+
+function densidadeMediaCamara(camara, ref) {
+  const lista = camara.corposMoedores || [];
+  if (!lista.length) return { densidade: 4.7, superficie: 0 };
+  const totalPct = lista.reduce((a, cm) => a + cm.pct, 0) || 100;
+  let densidade = 0, superficie = 0;
+  lista.forEach((cm) => {
+    const r = lookupRef(ref, cm.diam);
+    densidade += r.densidade * (cm.pct / totalPct);
+    superficie += r.superficie * (cm.pct / totalPct);
+  });
+  return { densidade, superficie };
+}
+
+function calcularMedicao(camara, alturas, ref) {
+  const validas = alturas.filter((v) => v !== '' && v !== null && v !== undefined && !Number.isNaN(Number(v))).map(Number);
+  const hMedio = validas.length ? validas.reduce((a, b) => a + b, 0) / validas.length : 0;
+  const D = camara.diametro, L = camara.comprimento;
+  const Gcalc = validas.length ? calcG(hMedio, D) : 0;
+  const Vi = calcVi(D, L);
+  const VbAtual = calcVb(Vi, Gcalc);
+  const VbMeta = calcVb(Vi, camara.metaG);
+  const deficitVol = VbMeta - VbAtual;
+
+  // Estimativa diâmetro-agnóstica: converte o volume em falta para massa usando a
+  // densidade média de referência da câmara. A escolha de quais diâmetros usar na
+  // recarga real é feita manualmente pela equipe e registrada à parte.
+  const media = densidadeMediaCamara(camara, ref);
+  const deficitMassa = deficitVol > 0 ? deficitVol * media.densidade : 0;
+  const superficieAdicionada = deficitMassa > 0 ? deficitMassa * media.superficie : 0;
+
+  return { hMedio, Gcalc, Vi, VbAtual, VbMeta, deficitVol, deficitMassa, superficieAdicionada, densidadeMedia: media.densidade, nValidas: validas.length };
+}
+
+function cameraGaugeSvg(D, hMedio, metaG, Gcalc, size) {
+  size = size || 132;
+  const r = 90, cx = 100, cy = 100;
+  const frac = D > 0 ? Math.max(0, Math.min(1, hMedio / D)) : 0;
+  const hOverDMeta = 0.5 - (metaG - 50) / 125;
+  const metaFrac = Math.max(0, Math.min(1, hOverDMeta));
+  const clipId = 'clip-' + uid();
+  const y0 = cy - r;
+  const fillY = cy + r - frac * (2 * r);
+  const metaY = cy + r - metaFrac * (2 * r);
+  const tone = statusFromG(Gcalc, metaG).tone;
+  const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : 'var(--bad)';
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 200 200">' +
+    '<defs><clipPath id="'+clipId+'"><rect x="0" y="'+fillY+'" width="200" height="'+(2*r-(fillY-y0))+'"/></clipPath></defs>' +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="var(--panel-2)" stroke="var(--line)" stroke-width="2"/>' +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+toneColor+'" opacity="0.85" clip-path="url(#'+clipId+')"/>' +
+    '<line x1="'+(cx-r)+'" x2="'+(cx+r)+'" y1="'+metaY+'" y2="'+metaY+'" stroke="var(--accent)" stroke-dasharray="4 3" stroke-width="1.5"/>' +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="2"/>' +
+  '</svg>';
+}
+
+// ===========================================================================
+// Estado global
+// ===========================================================================
+const STATE = {
+  tab: 'painel',
+  mills: MOINHOS_PADRAO,
+  records: [],
+  ref: SUPERFICIE_REF_PADRAO,
+  loaded: false,
+  medForm: { millId: null, camaraId: null, data: todayISO(), recargaLinhas: [], editingId: null, editAlturas: null, editObs: '' },
+  historicoFilterMill: 'todos',
+};
+const CHARTS = {};
+
+// ===========================================================================
+// Storage
+// ===========================================================================
+// Ponte com o backend do Apps Script (google.script.run → Promise)
+function gasCall(fn) {
+  const args = Array.prototype.slice.call(arguments, 1);
+  return new Promise((resolve, reject) => {
+    const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler(reject);
+    runner[fn].apply(runner, args);
+  });
+}
+
+// Gravações em fila: garante que a última alteração seja a última salva.
+let SAVE_QUEUE = Promise.resolve();
+function saveKey(key, value) {
+  const json = JSON.stringify(value);
+  SAVE_QUEUE = SAVE_QUEUE.then(() => gasCall('setData', key, json)).catch((e) => {
+    console.error(e);
+    flash('Erro ao salvar no servidor: ' + (e && e.message ? e.message : e));
+  });
+  return SAVE_QUEUE;
+}
+
+async function loadAll() {
+  try {
+    const d = await gasCall('getAllData', ['mills-config', 'measurement-records', 'corpos-moedores-ref']);
+    try { if (d['mills-config']) STATE.mills = JSON.parse(d['mills-config']); } catch(e) {}
+    try { if (d['measurement-records']) STATE.records = JSON.parse(d['measurement-records']); } catch(e) {}
+    try { if (d['corpos-moedores-ref']) STATE.ref = JSON.parse(d['corpos-moedores-ref']); } catch(e) {}
+  } catch(e) {
+    console.error(e);
+    setTimeout(() => flash('Não foi possível carregar os dados salvos.'), 0);
+  }
+  STATE.loaded = true;
+  const firstMill = STATE.mills[0];
+  STATE.medForm.millId = firstMill ? firstMill.id : null;
+  STATE.medForm.camaraId = firstMill && firstMill.camaras[0] ? firstMill.camaras[0].id : null;
+}
+function persistMills() { return saveKey('mills-config', STATE.mills); }
+function persistRecords() { return saveKey('measurement-records', STATE.records); }
+function persistRef() { return saveKey('corpos-moedores-ref', STATE.ref); }
+
+function flash(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+function findMill(id) { return STATE.mills.find(m => m.id === id); }
+function findCamara(mill, id) { return mill ? mill.camaras.find(c => c.id === id) : null; }
+function latestByChamber() {
+  const map = {};
+  STATE.records.forEach((rec) => { if (!map[rec.camaraId] || rec.data > map[rec.camaraId].data) map[rec.camaraId] = rec; });
+  return map;
+}
+
+// ===========================================================================
+// Render principal
+// ===========================================================================
+function setTab(tab) { STATE.tab = tab; render(); }
+
+function render() {
+  renderTabs();
+  const content = document.getElementById('content');
+  if (!STATE.loaded) { content.innerHTML = '<p style="color:var(--text-dim)">Carregando dados salvos…</p>'; return; }
+  if (STATE.tab === 'painel') content.innerHTML = renderPainel();
+  else if (STATE.tab === 'medicao') { content.innerHTML = renderMedicao(); updateResultPanel(); renderRecargaLinhas(); }
+  else if (STATE.tab === 'historico') { content.innerHTML = renderHistorico(); setTimeout(renderCharts, 0); }
+  else if (STATE.tab === 'moinhos') content.innerHTML = renderMoinhos();
+}
+
+function renderTabs() {
+  const tabs = [
+    ['painel', 'gauge', 'Painel'],
+    ['medicao', 'ruler', 'Nova medição'],
+    ['historico', 'history', 'Histórico'],
+    ['moinhos', 'settings', 'Moinhos'],
+  ];
+  document.getElementById('tabs').innerHTML = tabs.map(([id, ic, label]) =>
+    '<button class="tab '+(STATE.tab===id?'active':'')+'" data-action="setTab" data-tab="'+id+'">'+icon(ic,15)+' '+label+'</button>'
+  ).join('');
+  document.querySelector('.brand-mark').innerHTML = icon('gauge', 20);
+}
+
+// ===========================================================================
+// Painel
+// ===========================================================================
+function renderPainel() {
+  const latest = latestByChamber();
+  let html = '<div class="stack"><div class="section-head"><h1>Painel geral</h1><p>Situação mais recente de cada câmara, comparada à meta de enchimento.</p></div>';
+
+  STATE.mills.forEach((m) => {
+    html += '<div class="mill-block"><div class="mill-block-head">'+icon('factory',16)+'<span>'+esc(m.nome)+'</span><span class="pill">'+esc(m.tipo)+'</span></div><div class="cards-grid">';
+    m.camaras.forEach((c) => {
+      const rec = latest[c.id];
+      const calc = rec ? calcularMedicao(c, rec.alturas, STATE.ref) : null;
+      const tone = calc ? statusFromG(calc.Gcalc, c.metaG).tone : 'muted';
+      const label = calc ? statusFromG(calc.Gcalc, c.metaG).label : 'Sem medição';
+      html += '<div class="card"><div class="card-top"><div><div class="card-title">'+esc(c.nome)+'</div><div class="card-sub">Ø '+fmt(c.diametro,2)+' m · L '+fmt(c.comprimento,2)+' m · meta '+c.metaG+'%</div></div>' +
+        cameraGaugeSvg(c.diametro, calc?calc.hMedio:0, c.metaG, calc?calc.Gcalc:0, 90) + '</div>';
+      if (calc) {
+        html += '<div class="metric-row">' +
+          '<div class="metric"><div class="metric-label">G% medido</div><div class="metric-value">'+fmt(calc.Gcalc,1)+'%</div></div>' +
+          '<div class="metric"><div class="metric-label">h médio</div><div class="metric-value">'+fmt(calc.hMedio,2)+' m</div></div>' +
+          '<div class="metric"><div class="metric-label">Data</div><div class="metric-value small">'+formatDateBR(rec.data)+'</div></div></div>';
+        html += '<div class="status status-'+tone+'">'+icon(tone==='ok'?'check':tone==='warn'?'alert':'down',14)+' '+label +
+          (calc.deficitMassa>0 ? '<span class="status-extra">· repor ≈ '+fmt(calc.deficitMassa,3)+' t</span>' : '') + '</div>';
+      } else {
+        html += '<div class="empty-mini">Nenhuma medição registrada ainda.</div>';
+      }
+      html += '</div>';
+    });
+    html += '</div></div>';
+  });
+
+  html += '<button class="btn-primary btn-wide" data-action="setTab" data-tab="medicao">'+icon('plus',16)+' Registrar nova medição</button></div>';
+  return html;
+}
+
+// ===========================================================================
+// Nova Medição
+// ===========================================================================
+function renderMedicao() {
+  if (!STATE.mills.length) return '<div class="stack"><p>Cadastre um moinho na aba "Moinhos" primeiro.</p></div>';
+  let mill = findMill(STATE.medForm.millId) || STATE.mills[0];
+  STATE.medForm.millId = mill.id;
+  let camara = findCamara(mill, STATE.medForm.camaraId) || mill.camaras[0];
+  if (!camara) return '<div class="stack"><p>Esse moinho não tem câmaras cadastradas.</p></div>';
+  STATE.medForm.camaraId = camara.id;
+
+  const n = camara.nMedicoes || 5;
+  const editando = !!STATE.medForm.editingId;
+  let html = '<div class="stack"><div class="section-head"><h1>'+(editando?'Editar medição':'Nova medição')+'</h1><p>Informe as alturas medidas na câmara para calcular o grau de enchimento automaticamente.</p></div>';
+
+  if (editando) {
+    html += '<div class="edit-banner">'+icon('edit',14)+' Editando registro de '+formatDateBR(STATE.medForm.data)+' — '+esc(camara.nome)+
+      ' <button class="btn-ghost" style="margin:0 0 0 8px;display:inline-flex" onclick="cancelEdit()">Cancelar edição</button></div>';
+  }
+
+  html += '<div class="form-grid">' +
+    '<label class="field"><span>Moinho</span><select id="f-mill" data-action="changeMillCamara">' +
+      STATE.mills.map(m => '<option value="'+m.id+'" '+(m.id===mill.id?'selected':'')+'>'+esc(m.nome)+'</option>').join('') + '</select></label>' +
+    '<label class="field"><span>Câmara</span><select id="f-camara" data-action="changeMillCamara">' +
+      mill.camaras.map(c => '<option value="'+c.id+'" '+(c.id===camara.id?'selected':'')+'>'+esc(c.nome)+'</option>').join('') + '</select></label>' +
+    '<label class="field"><span>Data da medição</span><input type="date" id="f-data" value="'+STATE.medForm.data+'" /></label>' +
+  '</div>';
+
+  html += '<div class="two-col"><div class="panel">' +
+    '<div class="panel-title">'+icon('ruler',15)+' Medições de altura (h) — '+n+' pontos</div>' +
+    '<div class="alturas-grid" id="alturas-grid">';
+  for (let i=0;i<n;i++) {
+    const val = (editando && STATE.medForm.editAlturas && STATE.medForm.editAlturas[i]!==undefined) ? STATE.medForm.editAlturas[i] : '';
+    html += '<label class="field small"><span>Ponto '+(i+1)+' (m)</span><input type="number" step="0.01" min="0" class="f-altura" data-idx="'+i+'" value="'+val+'" placeholder="0,00" oninput="onMedicaoInput()" /></label>';
+  }
+  html += '</div>' +
+    '<label class="field" style="margin-top:12px"><span>Observações</span><textarea id="f-obs" rows="2" placeholder="Ex.: parada programada, condição do revestimento, etc.">'+esc(STATE.medForm.editObs||'')+'</textarea></label>' +
+  '</div>';
+
+  html += '<div class="panel" id="resultado-panel"></div></div>';
+
+  html += '<div class="panel">' +
+    '<div class="panel-title">'+icon('package',15)+' Recarga real efetuada nesta data (opcional)</div>' +
+    '<p class="ref-note">A estimativa acima é só a massa total necessária. A decisão de quais diâmetros usar é da equipe — registre aqui o que foi efetivamente carregado, linha por linha.</p>' +
+    '<div id="recarga-linhas"></div>' +
+    '<button class="btn-ghost" onclick="addRecargaLinha()">'+icon('plus',13)+' Adicionar diâmetro usado na recarga</button>' +
+    '<div id="recarga-total" style="margin-top:10px"></div>' +
+  '</div>';
+
+  html += '<button class="btn-primary btn-wide" id="btn-salvar" onclick="salvarMedicao()">'+icon(editando?'edit':'plus',16)+' <span id="btn-salvar-label">'+(editando?'Salvar alterações':'Salvar medição')+'</span></button></div>';
+  return html;
+}
+
+function onMedicaoInput() { updateResultPanel(); }
+
+function readAlturas() {
+  return Array.from(document.querySelectorAll('.f-altura')).map(inp => inp.value);
+}
+
+function updateResultPanel() {
+  const mill = findMill(STATE.medForm.millId);
+  const camara = findCamara(mill, STATE.medForm.camaraId);
+  if (!camara) return;
+  const alturas = readAlturas();
+  const calc = calcularMedicao(camara, alturas, STATE.ref);
+  const podeSlavar = calc.nValidas === camara.nMedicoes;
+
+  let html = '<div class="panel-title">'+icon('gauge',15)+' Resultado do cálculo</div>' +
+    '<div class="gauge-center">'+cameraGaugeSvg(camara.diametro, calc.hMedio, camara.metaG, calc.Gcalc, 150)+'</div>' +
+    '<div class="result-list">' +
+    resultRow('h médio', fmt(calc.hMedio,3)+' m') +
+    resultRow('G% calculado', fmt(calc.Gcalc,2)+' %', null, true) +
+    resultRow('Meta da câmara', camara.metaG+' %') +
+    resultRow('Volume útil (Vi)', fmt(calc.Vi,2)+' m³') +
+    resultRow('Volume de carga atual (Vb)', fmt(calc.VbAtual,2)+' m³') +
+    resultRow('Volume de carga meta', fmt(calc.VbMeta,2)+' m³') +
+    resultRow('Déficit de volume', calc.deficitVol>0?fmt(calc.deficitVol,2)+' m³':'sem déficit', calc.deficitVol>0?'bad':'ok') +
+    resultRow('Recarga necessária estimada', calc.deficitMassa>0?fmtKg(calc.deficitMassa):'—', calc.deficitMassa>0?'bad':'ok', true) +
+    resultRow('Superfície de moagem a adicionar', calc.deficitMassa>0?fmt(calc.superficieAdicionada,1)+' m²':'—', null, true) +
+    '</div>';
+
+  if (calc.deficitMassa > 0) {
+    html += '<div class="mix-note" style="margin-top:10px">Estimativa calculada com a densidade média de referência da câmara ('+fmt(calc.densidadeMedia,2)+' t/m³, conforme a composição teórica cadastrada em "Moinhos"). Decida os diâmetros a usar e registre no painel ao lado.</div>';
+  }
+
+  document.getElementById('resultado-panel').innerHTML = html;
+  const btn = document.getElementById('btn-salvar');
+  const label = document.getElementById('btn-salvar-label');
+  if (btn) {
+    btn.disabled = !podeSlavar;
+    const salvarLabel = STATE.medForm.editingId ? 'Salvar alterações' : 'Salvar medição';
+    label.textContent = podeSlavar ? salvarLabel : 'Preencha as '+camara.nMedicoes+' medições para salvar';
+  }
+}
+
+function resultRow(label, value, tone, highlight) {
+  return '<div class="result-row'+(highlight?' highlight':'')+'"><span class="result-label">'+label+'</span><span class="result-value'+(tone?' tone-'+tone:'')+'">'+value+'</span></div>';
+}
+
+// ---------------------------------------------------------------------------
+// Linhas de recarga real (diâmetro + massa + origem)
+// ---------------------------------------------------------------------------
+function renderRecargaLinhas() {
+  const wrap = document.getElementById('recarga-linhas');
+  const totalWrap = document.getElementById('recarga-total');
+  if (!wrap) return;
+  const linhas = STATE.medForm.recargaLinhas;
+  if (!linhas.length) {
+    wrap.innerHTML = '<div class="empty-mini">Nenhum diâmetro registrado ainda para esta recarga.</div>';
+    if (totalWrap) totalWrap.innerHTML = '';
+    return;
+  }
+  const opcoesDiam = STATE.ref.slice().sort((a,b)=>b.diam-a.diam).map(r=>r.diam);
+  wrap.innerHTML = linhas.map((l, i) =>
+    '<div class="mix-editor-row">' +
+      '<select onchange="updateRecargaLinha('+i+',\'diam\',Number(this.value))">' +
+        opcoesDiam.map(d => '<option value="'+d+'" '+(d===l.diam?'selected':'')+'>Ø '+d+' mm</option>').join('') +
+      '</select>' +
+      '<input type="number" step="1" min="0" value="'+(l.massaKg||'')+'" placeholder="kg" style="width:90px" onchange="updateRecargaLinha('+i+',\'massaKg\',Number(this.value))" /><span>kg ·</span>' +
+      '<select onchange="updateRecargaLinha('+i+',\'origem\',this.value)">' +
+        '<option value="nova" '+(l.origem==='nova'?'selected':'')+'>Nova</option>' +
+        '<option value="usada" '+(l.origem==='usada'?'selected':'')+'>Usada/reclassificada</option>' +
+        '<option value="mista" '+(l.origem==='mista'?'selected':'')+'>Mista</option>' +
+      '</select>' +
+      '<button class="icon-btn danger" onclick="removeRecargaLinha('+i+')">'+icon('trash',13)+'</button>' +
+    '</div>'
+  ).join('');
+  const totalKg = linhas.reduce((a,l) => a + (Number(l.massaKg)||0), 0);
+  if (totalWrap) totalWrap.innerHTML = '<div class="result-row highlight"><span class="result-label">Total registrado nesta recarga</span><span class="result-value">'+fmt(totalKg,0)+' kg</span></div>';
+}
+
+function addRecargaLinha() {
+  const opcoesDiam = STATE.ref.slice().sort((a,b)=>b.diam-a.diam);
+  STATE.medForm.recargaLinhas.push({ diam: opcoesDiam[0] ? opcoesDiam[0].diam : 0, massaKg: '', origem: 'nova' });
+  renderRecargaLinhas();
+}
+function removeRecargaLinha(i) { STATE.medForm.recargaLinhas.splice(i,1); renderRecargaLinhas(); }
+function updateRecargaLinha(i, field, value) { STATE.medForm.recargaLinhas[i][field] = value; renderRecargaLinhas(); }
+
+function salvarMedicao() {
+  const mill = findMill(STATE.medForm.millId);
+  const camara = findCamara(mill, STATE.medForm.camaraId);
+  if (!camara) return;
+  const alturas = readAlturas();
+  const calc = calcularMedicao(camara, alturas, STATE.ref);
+  if (calc.nValidas !== camara.nMedicoes) return;
+
+  const data = document.getElementById('f-data').value || STATE.medForm.data;
+  const obs = document.getElementById('f-obs').value;
+
+  const linhasValidas = STATE.medForm.recargaLinhas
+    .filter(l => l.massaKg !== '' && Number(l.massaKg) > 0)
+    .map(l => ({ diam: Number(l.diam), massaT: Number(l.massaKg)/1000, origem: l.origem }));
+  const recargaRealT = linhasValidas.length ? linhasValidas.reduce((a,l)=>a+l.massaT,0) : null;
+
+  if (STATE.medForm.editingId) {
+    const idx = STATE.records.findIndex(r => r.id === STATE.medForm.editingId);
+    if (idx !== -1) {
+      STATE.records[idx] = Object.assign({}, STATE.records[idx], {
+        millId: mill.id, millNome: mill.nome, camaraId: camara.id, camaraNome: camara.nome,
+        data, alturas: alturas.map(Number), recargaLinhas: linhasValidas, recargaRealT, obs,
+        editadoEm: new Date().toISOString(),
+      });
+    }
+    persistRecords();
+    STATE.medForm.editingId = null;
+    STATE.medForm.editAlturas = null;
+    STATE.medForm.editObs = '';
+    STATE.medForm.recargaLinhas = [];
+    flash('Medição atualizada com sucesso.');
+    setTab('historico');
+  } else {
+    STATE.records.push({
+      id: uid(), millId: mill.id, millNome: mill.nome, camaraId: camara.id, camaraNome: camara.nome,
+      data, alturas: alturas.map(Number), recargaLinhas: linhasValidas, recargaRealT, obs,
+      registradoEm: new Date().toISOString(),
+    });
+    persistRecords();
+    STATE.medForm.recargaLinhas = [];
+    flash('Medição registrada com sucesso.');
+    setTab('painel');
+  }
+}
+
+function startEdit(id) {
+  const rec = STATE.records.find(r => r.id === id);
+  if (!rec) return;
+  STATE.medForm.millId = rec.millId;
+  STATE.medForm.camaraId = rec.camaraId;
+  STATE.medForm.data = rec.data;
+  STATE.medForm.editingId = rec.id;
+  STATE.medForm.editAlturas = (rec.alturas || []).slice();
+  STATE.medForm.editObs = rec.obs || '';
+  STATE.medForm.recargaLinhas = (rec.recargaLinhas || []).map(l => ({ diam: l.diam, massaKg: Math.round(l.massaT*1000), origem: l.origem }));
+  setTab('medicao');
+}
+
+function cancelEdit() {
+  STATE.medForm.editingId = null;
+  STATE.medForm.editAlturas = null;
+  STATE.medForm.editObs = '';
+  STATE.medForm.recargaLinhas = [];
+  render();
+}
+
+function changeMillCamara() {
+  const millSel = document.getElementById('f-mill');
+  const camSel = document.getElementById('f-camara');
+  const newMillId = millSel.value;
+  if (newMillId !== STATE.medForm.millId) {
+    STATE.medForm.millId = newMillId;
+    const mill = findMill(newMillId);
+    STATE.medForm.camaraId = mill && mill.camaras[0] ? mill.camaras[0].id : null;
+  } else {
+    STATE.medForm.camaraId = camSel.value;
+  }
+  STATE.medForm.data = document.getElementById('f-data').value;
+  STATE.medForm.recargaLinhas = [];
+  STATE.medForm.editingId = null;
+  STATE.medForm.editAlturas = null;
+  STATE.medForm.editObs = '';
+  render();
+}
+
+// ===========================================================================
+// Histórico
+// ===========================================================================
+function enrichedRecords() {
+  return STATE.records.map(r => {
+    const mill = findMill(r.millId);
+    const camara = findCamara(mill, r.camaraId);
+    if (!camara) return null;
+    const calc = calcularMedicao(camara, r.alturas, STATE.ref);
+    const mesRef = (r.data || '').slice(0,7);
+    return Object.assign({}, r, { calc, camara, mill, mesRef });
+  }).filter(Boolean)
+    .filter(r => STATE.historicoFilterMill === 'todos' || r.millId === STATE.historicoFilterMill)
+    .sort((a,b) => a.data < b.data ? -1 : a.data > b.data ? 1 : 0);
+}
+
+function renderHistorico() {
+  const enriched = enrichedRecords();
+  let html = '<div class="stack"><div class="section-head"><h1>Histórico</h1><p>Evolução do grau de enchimento e das recargas realizadas, por data.</p></div>';
+  html += '<label class="field" style="max-width:320px"><span>Filtrar por moinho</span><select id="f-filter-mill" onchange="onFilterMillChange()">' +
+    '<option value="todos" '+(STATE.historicoFilterMill==='todos'?'selected':'')+'>Todos os moinhos</option>' +
+    STATE.mills.map(m => '<option value="'+m.id+'" '+(m.id===STATE.historicoFilterMill?'selected':'')+'>'+esc(m.nome)+'</option>').join('') +
+    '</select></label>';
+
+  if (!enriched.length) {
+    html += '<div class="empty-mini">Nenhum registro ainda. Vá em "Nova medição" para começar.</div></div>';
+    return html;
+  }
+
+  html += '<div class="panel"><div class="panel-title">'+icon('up',15)+' G% ao longo do tempo</div><div class="chart-box"><canvas id="chart-g"></canvas></div></div>';
+  html += '<div class="panel"><div class="panel-title">'+icon('package',15)+' Recarga estimada × realizada (kg/mês)</div><div class="chart-box short"><canvas id="chart-recarga"></canvas></div></div>';
+
+  html += '<div class="panel"><div class="panel-title">'+icon('history',15)+' Registros</div><div class="table-wrap"><table class="table"><thead><tr>' +
+    '<th>Data</th><th>Moinho</th><th>Câmara</th><th>h médio</th><th>G%</th><th>Status</th><th>Repor est.</th><th>Repor real</th><th>Diâmetros usados</th><th></th></tr></thead><tbody>';
+  enriched.slice().reverse().forEach(r => {
+    const st = statusFromG(r.calc.Gcalc, r.camara.metaG);
+    const origemAbrev = { nova: 'nova', usada: 'usada', mista: 'mista' };
+    const detalheRecarga = (r.recargaLinhas && r.recargaLinhas.length)
+      ? r.recargaLinhas.map(l => 'Ø'+l.diam+': '+fmt(l.massaT*1000,0)+'kg ('+(origemAbrev[l.origem]||l.origem)+')').join('; ')
+      : '—';
+    html += '<tr><td>'+formatDateBR(r.data)+'</td><td>'+esc(r.millNome)+'</td><td>'+esc(r.camaraNome)+'</td><td>'+fmt(r.calc.hMedio,2)+' m</td><td>'+fmt(r.calc.Gcalc,1)+'%</td>' +
+      '<td><span class="status-chip status-'+st.tone+'">'+st.label+'</span></td>' +
+      '<td>'+(r.calc.deficitMassa>0?fmtKg(r.calc.deficitMassa):'—')+'</td>' +
+      '<td>'+(r.recargaRealT?fmtKg(r.recargaRealT):'—')+'</td>' +
+      '<td style="white-space:normal;min-width:180px">'+esc(detalheRecarga)+'</td>' +
+      '<td><button class="icon-btn" onclick="startEdit(\''+r.id+'\')" title="Editar" style="margin-right:6px">'+icon('edit',14)+'</button><button class="icon-btn" onclick="deleteRecord(\''+r.id+'\')" title="Excluir">'+icon('trash',14)+'</button></td></tr>';
+  });
+  html += '</tbody></table></div></div></div>';
+  return html;
+}
+
+function onFilterMillChange() {
+  STATE.historicoFilterMill = document.getElementById('f-filter-mill').value;
+  render();
+}
+
+function deleteRecord(id) {
+  STATE.records = STATE.records.filter(r => r.id !== id);
+  persistRecords();
+  flash('Registro removido.');
+  render();
+}
+
+function renderCharts() {
+  const enriched = enrichedRecords();
+  if (!enriched.length) return;
+  const palette = ['#5B8DB8','#E8871E','#6B9E78','#C1554D','#A78BC7','#D6B85A'];
+
+  // --- G% ao longo do tempo (por data exata) ---
+  const datesSet = new Set();
+  const bySeries = {};
+  enriched.forEach(r => {
+    datesSet.add(r.data);
+    const key = r.camaraNome + ' · ' + r.millNome.replace('Moinho ','');
+    bySeries[key] = bySeries[key] || {};
+    bySeries[key][r.data] = Number(r.calc.Gcalc.toFixed(1));
+  });
+  const dates = Array.from(datesSet).sort();
+  const datasetsG = Object.keys(bySeries).map((key, i) => ({
+    label: key,
+    data: dates.map(d => bySeries[key][d] !== undefined ? bySeries[key][d] : null),
+    borderColor: palette[i % palette.length],
+    backgroundColor: palette[i % palette.length],
+    spanGaps: true,
+    tension: 0.25,
+  }));
+
+  const ctxG = document.getElementById('chart-g');
+  if (ctxG) {
+    if (CHARTS.g) CHARTS.g.destroy();
+    CHARTS.g = new Chart(ctxG, {
+      type: 'line',
+      data: { labels: dates.map(formatDateBR), datasets: datasetsG },
+      options: chartOptions('%'),
+    });
+  }
+
+  // --- Recarga estimada x realizada, agrupada por mês (kg) ---
+  const byMonth = {};
+  enriched.forEach(r => {
+    byMonth[r.mesRef] = byMonth[r.mesRef] || { estimado:0, realNova:0, realUsada:0, realMista:0 };
+    byMonth[r.mesRef].estimado += (r.calc.deficitMassa || 0) * 1000;
+    (r.recargaLinhas || []).forEach(l => {
+      const kg = l.massaT * 1000;
+      if (l.origem === 'usada') byMonth[r.mesRef].realUsada += kg;
+      else if (l.origem === 'mista') byMonth[r.mesRef].realMista += kg;
+      else byMonth[r.mesRef].realNova += kg;
+    });
+  });
+  const rMonths = Object.keys(byMonth).sort();
+  const ctxR = document.getElementById('chart-recarga');
+  if (ctxR) {
+    if (CHARTS.r) CHARTS.r.destroy();
+    CHARTS.r = new Chart(ctxR, {
+      type: 'bar',
+      data: {
+        labels: rMonths,
+        datasets: [
+          { label: 'Estimado', data: rMonths.map(m => byMonth[m].estimado), backgroundColor: '#5B8DB8' },
+          { label: 'Real · nova', data: rMonths.map(m => byMonth[m].realNova), backgroundColor: '#E8871E', stack: 'real' },
+          { label: 'Real · usada/reclassificada', data: rMonths.map(m => byMonth[m].realUsada), backgroundColor: '#D9A441', stack: 'real' },
+          { label: 'Real · mista', data: rMonths.map(m => byMonth[m].realMista), backgroundColor: '#C1554D', stack: 'real' },
+        ],
+      },
+      options: chartOptions('kg'),
+    });
+  }
+}
+
+function chartOptions(unit) {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { ticks: { color: '#9AA3B0', font: { size: 11 } }, grid: { color: '#3A414C' } },
+      y: { ticks: { color: '#9AA3B0', font: { size: 11 }, callback: v => v+unit }, grid: { color: '#3A414C' } },
+    },
+    plugins: { legend: { labels: { color: '#E9E7E1', font: { size: 11 } } } },
+  };
+}
+
+// ===========================================================================
+// Moinhos (config)
+// ===========================================================================
+function renderMoinhos() {
+  let html = '<div class="stack"><div class="section-head"><h1>Configuração dos moinhos</h1><p>Dimensões, meta de enchimento e mistura de corpos moedores por câmara. Edite livremente e adicione novos moinhos quando precisar.</p></div>';
+
+  html += '<div class="panel"><div class="panel-title">'+icon('package',15)+' Tabela de referência — corpos moedores</div>' +
+    '<p class="ref-note">Densidade aparente e superfície específica por diâmetro, usadas no cálculo pelo método da superfície total. Edite se a usina atualizar esses valores.</p>' +
+    '<div class="ref-table"><div class="ref-head"><span>Ø (mm)</span><span>Densidade (t/m³)</span><span>Superfície específica (m²/t)</span><span></span></div>';
+  STATE.ref.forEach((r, ri) => {
+    html += '<div class="ref-row">' +
+      '<input type="number" value="'+r.diam+'" onchange="updateRefRow('+ri+',\'diam\',this.value)" />' +
+      '<input type="number" step="0.01" value="'+r.densidade+'" onchange="updateRefRow('+ri+',\'densidade\',this.value)" />' +
+      '<input type="number" step="0.1" value="'+r.superficie+'" onchange="updateRefRow('+ri+',\'superficie\',this.value)" />' +
+      '<button class="icon-btn danger" onclick="removeRefRow('+ri+')">'+icon('trash',13)+'</button></div>';
+  });
+  html += '</div><button class="btn-ghost" onclick="addRefRow()">'+icon('plus',13)+' Adicionar diâmetro à tabela</button></div>';
+
+  STATE.mills.forEach((m, mi) => {
+    html += '<div class="panel"><div class="panel-title-row">' +
+      '<input class="mill-name-input" value="'+esc(m.nome)+'" onchange="updateMillName('+mi+',this.value)" />' +
+      '<select onchange="updateMillTipo('+mi+',this.value)">' +
+        ['Pasta','Combustível','Outro'].map(t => '<option '+(m.tipo===t?'selected':'')+'>'+t+'</option>').join('') +
+      '</select>' +
+      '<button class="icon-btn danger" onclick="removeMill('+mi+')" title="Remover moinho">'+icon('trash',14)+'</button></div>';
+
+    m.camaras.forEach((c, ci) => {
+      html += '<div class="camara-edit"><div class="camara-edit-head">' +
+        '<input class="camara-name-input" value="'+esc(c.nome)+'" onchange="updateCamaraField('+mi+','+ci+',\'nome\',this.value)" />' +
+        '<button class="icon-btn danger" onclick="removeCamara('+mi+','+ci+')" title="Remover câmara">'+icon('trash',13)+'</button></div>';
+      html += '<div class="form-grid tight">' +
+        '<label class="field small"><span>Diâmetro interno (m)</span><input type="number" step="0.01" value="'+c.diametro+'" onchange="updateCamaraField('+mi+','+ci+',\'diametro\',Number(this.value))" /></label>' +
+        '<label class="field small"><span>Comprimento (m)</span><input type="number" step="0.01" value="'+c.comprimento+'" onchange="updateCamaraField('+mi+','+ci+',\'comprimento\',Number(this.value))" /></label>' +
+        '<label class="field small"><span>Meta G%</span><input type="number" step="0.5" value="'+c.metaG+'" onchange="updateCamaraField('+mi+','+ci+',\'metaG\',Number(this.value))" /></label>' +
+        '<label class="field small"><span>Nº medições de altura</span><input type="number" min="1" value="'+c.nMedicoes+'" onchange="updateCamaraField('+mi+','+ci+',\'nMedicoes\',Number(this.value))" /></label>' +
+      '</div>';
+      html += '<div class="mix-editor"><div class="mix-editor-title">Composição teórica de referência (usada só para estimar a densidade média da câmara)</div>';
+      c.corposMoedores.forEach((cm, ki) => {
+        const r = lookupRef(STATE.ref, cm.diam);
+        html += '<div class="mix-editor-row">' +
+          '<input type="number" placeholder="Ø mm" value="'+cm.diam+'" onchange="updateMix('+mi+','+ci+','+ki+',\'diam\',Number(this.value))" /><span>mm ·</span>' +
+          '<input type="number" placeholder="%" value="'+cm.pct+'" onchange="updateMix('+mi+','+ci+','+ki+',\'pct\',Number(this.value))" /><span>% · '+fmt(r.densidade,2)+' t/m³ · '+fmt(r.superficie,1)+' m²/t</span>' +
+          '<button class="icon-btn" onclick="removeMix('+mi+','+ci+','+ki+')">'+icon('trash',13)+'</button></div>';
+      });
+      html += '<button class="btn-ghost" onclick="addMix('+mi+','+ci+')">'+icon('plus',13)+' Adicionar diâmetro</button></div></div>';
+    });
+    html += '<button class="btn-ghost" onclick="addCamara('+mi+')">'+icon('layers',13)+' Adicionar câmara</button></div>';
+  });
+
+  html += '<button class="btn-primary btn-wide" onclick="addMill()">'+icon('factory',16)+' Adicionar novo moinho</button></div>';
+  return html;
+}
+
+function updateRefRow(idx, field, value) { STATE.ref[idx][field] = field==='diam' ? Number(value) : Number(value); persistRef(); render(); }
+function addRefRow() { STATE.ref.push({ diam:0, densidade:4.7, superficie:0 }); persistRef(); render(); }
+function removeRefRow(idx) { STATE.ref.splice(idx,1); persistRef(); render(); }
+
+function updateMillName(mi, value) { STATE.mills[mi].nome = value; persistMills(); }
+function updateMillTipo(mi, value) { STATE.mills[mi].tipo = value; persistMills(); }
+function updateCamaraField(mi, ci, field, value) { STATE.mills[mi].camaras[ci][field] = value; persistMills(); render(); }
+function updateMix(mi, ci, ki, field, value) { STATE.mills[mi].camaras[ci].corposMoedores[ki][field] = value; persistMills(); render(); }
+function addMix(mi, ci) { STATE.mills[mi].camaras[ci].corposMoedores.push({ diam:0, pct:0 }); persistMills(); render(); }
+function removeMix(mi, ci, ki) { STATE.mills[mi].camaras[ci].corposMoedores.splice(ki,1); persistMills(); render(); }
+function addCamara(mi) {
+  STATE.mills[mi].camaras.push({ id:uid(), nome:'Nova câmara', diametro:2.0, comprimento:3.0, metaG:28, nMedicoes:5, corposMoedores:[{diam:60,pct:100}] });
+  persistMills(); render();
+}
+function removeCamara(mi, ci) { STATE.mills[mi].camaras.splice(ci,1); persistMills(); render(); }
+function addMill() {
+  STATE.mills.push({ id:uid(), nome:'Novo moinho', tipo:'Pasta', camaras:[{ id:uid(), nome:'1ª Câmara', diametro:2.0, comprimento:3.5, metaG:28, nMedicoes:5, corposMoedores:[{diam:60,pct:100}] }] });
+  persistMills(); flash('Moinho adicionado. Ajuste os parâmetros abaixo.'); render();
+}
+function removeMill(mi) { STATE.mills.splice(mi,1); persistMills(); render(); }
+
+// ===========================================================================
+// Utilitário / init
+// ===========================================================================
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+document.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-action="setTab"]');
+  if (el) setTab(el.getAttribute('data-tab'));
+});
+document.addEventListener('change', (e) => {
+  if (e.target.getAttribute && e.target.getAttribute('data-action') === 'changeMillCamara') changeMillCamara();
+});
+
+async function init() {
+  render();
+  await loadAll();
+  render();
+}
+init();
+</script>
+</body>
+</html>
