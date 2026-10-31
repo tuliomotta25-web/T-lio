@@ -6,7 +6,6 @@
 <title>Controle de Carga Moedora</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <style>
 :root{
   --bg:#1B1F26;
@@ -158,8 +157,12 @@ body { font-family: var(--font-body); color: var(--text); }
 .toast { position:fixed; bottom:22px; left:50%; transform:translateX(-50%); background: var(--panel-2); border:1px solid var(--accent); color: var(--text); padding:10px 18px; border-radius:10px; font-size:12.5px; font-weight:600; box-shadow: 0 8px 24px rgba(0,0,0,0.35); z-index:100; opacity:0; pointer-events:none; transition: opacity .2s ease; }
 .toast.show { opacity:1; }
 
-.chart-box { width:100%; height:280px; }
-.chart-box.short { height:240px; }
+.chart-box { width:100%; }
+.chart-svg { width:100%; height:auto; display:block; }
+.chart-tick { font-family: var(--font-mono); font-size:13px; fill: var(--text-dim); }
+.chart-legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin-bottom:8px; font-size:12px; color: var(--text-dim); }
+.chart-legend-item { display:flex; align-items:center; gap:6px; }
+.chart-empty { color: var(--text-dim); font-size:12.5px; }
 
 .gauge-pair { display:flex; justify-content:space-around; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
 .gauge-box { display:flex; flex-direction:column; align-items:center; gap:4px; }
@@ -401,7 +404,6 @@ const STATE = {
   recForm: { eventId: null, linhas: {} },
   historicoFilterMill: 'todos',
 };
-const CHARTS = {};
 const KEY_EVENTS = 'measurement-events';
 const KEY_OLD_RECORDS = 'measurement-records';
 
@@ -499,7 +501,7 @@ function render() {
   if (STATE.tab === 'painel') content.innerHTML = renderPainel();
   else if (STATE.tab === 'medicao') { content.innerHTML = renderMedicao(); atualizarMedicao(); }
   else if (STATE.tab === 'recarga') { content.innerHTML = renderRecarga(); atualizarRecarga(); }
-  else if (STATE.tab === 'historico') { content.innerHTML = renderHistorico(); setTimeout(renderCharts, 0); }
+  else if (STATE.tab === 'historico') { content.innerHTML = renderHistorico(); renderCharts(); }
   else if (STATE.tab === 'moinhos') content.innerHTML = renderMoinhos();
 }
 
@@ -873,8 +875,8 @@ function renderHistorico() {
 
   if (!eventos.length) return html + '<div class="empty-mini">Nenhum registro ainda. Vá em "Nova medição" para começar.</div></div>';
 
-  html += '<div class="panel"><div class="panel-title">'+icon('up',15)+' G% ao longo do tempo (linha cheia = medido · tracejada = após recarga)</div><div class="chart-box"><canvas id="chart-g"></canvas></div></div>';
-  html += '<div class="panel"><div class="panel-title">'+icon('package',15)+' Recarga estimada × realizada (kg/mês)</div><div class="chart-box short"><canvas id="chart-recarga"></canvas></div></div>';
+  html += '<div class="panel"><div class="panel-title">'+icon('up',15)+' G% ao longo do tempo (linha cheia = medido · tracejada = após recarga)</div><div class="chart-box" id="chart-g"></div></div>';
+  html += '<div class="panel"><div class="panel-title">'+icon('package',15)+' Recarga estimada × realizada (kg/mês)</div><div class="chart-box" id="chart-recarga"></div></div>';
 
   eventos.forEach((ev) => {
     const mill = findMill(ev.millId);
@@ -933,42 +935,151 @@ function deleteEvent(id) {
   render();
 }
 
+// ---------------------------------------------------------------------------
+// Gráficos em SVG puro (sem biblioteca externa — funciona em qualquer rede)
+// ---------------------------------------------------------------------------
+const CH_W = 900, CH_PAD = { l: 58, r: 18, t: 16, b: 38 };
+
+function niceStep(range, alvo) {
+  const bruto = range / (alvo || 5);
+  const pot = Math.pow(10, Math.floor(Math.log10(bruto || 1)));
+  const n = bruto / pot;
+  return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * pot;
+}
+
+function legendaHtml(itens) {
+  return '<div class="chart-legend">' + itens.map(it =>
+    '<span class="chart-legend-item"><svg width="26" height="10"><line x1="1" x2="25" y1="5" y2="5" stroke="'+it.cor+'" stroke-width="'+(it.barra?9:2.5)+'" '+(it.dash?'stroke-dasharray="5 3"':'')+'/></svg>'+esc(it.label)+'</span>'
+  ).join('') + '</div>';
+}
+
+function eixoY(yMin, yMax, passo, H, unidade, yPos) {
+  let s = '';
+  for (let v = yMin; v <= yMax + 1e-9; v += passo) {
+    const y = yPos(v);
+    s += '<line x1="'+CH_PAD.l+'" x2="'+(CH_W-CH_PAD.r)+'" y1="'+y+'" y2="'+y+'" stroke="var(--line)" stroke-width="1"/>' +
+      '<text x="'+(CH_PAD.l-8)+'" y="'+(y+4)+'" text-anchor="end" class="chart-tick">'+fmt(v, passo < 1 ? 1 : 0)+unidade+'</text>';
+  }
+  return s;
+}
+
+function eixoX(labels, xPos, H) {
+  const maxLabels = 12;
+  const pulo = Math.max(1, Math.ceil(labels.length / maxLabels));
+  return labels.map((lb, i) => (i % pulo === 0 || i === labels.length - 1)
+    ? '<text x="'+xPos(i)+'" y="'+(H-CH_PAD.b+20)+'" text-anchor="'+(xPos(i) < CH_PAD.l + 40 ? 'start' : xPos(i) > CH_W - CH_PAD.r - 40 ? 'end' : 'middle')+'" class="chart-tick">'+esc(lb)+'</text>' : '').join('');
+}
+
+// series: [{ label, cor, dash, valores: [num|null] }]; metas: [num]
+function svgLinhas(labels, series, metas, unidade) {
+  const H = 300;
+  const todos = [];
+  series.forEach(s => s.valores.forEach(v => { if (Number.isFinite(v)) todos.push(v); }));
+  (metas || []).forEach(m => todos.push(m));
+  if (!todos.length) return '';
+  let lo = Math.min.apply(null, todos), hi = Math.max.apply(null, todos);
+  if (hi - lo < 4) { lo -= 2; hi += 2; }
+  const passo = niceStep(hi - lo, 5);
+  const yMin = Math.max(0, Math.floor((lo - passo * 0.3) / passo) * passo);
+  const yMax = Math.ceil((hi + passo * 0.3) / passo) * passo;
+  const plotW = CH_W - CH_PAD.l - CH_PAD.r, plotH = H - CH_PAD.t - CH_PAD.b;
+  const xPos = i => +(CH_PAD.l + (labels.length === 1 ? plotW / 2 : plotW * i / (labels.length - 1))).toFixed(1);
+  const yPos = v => +(CH_PAD.t + plotH * (1 - (v - yMin) / (yMax - yMin))).toFixed(1);
+
+  let s = '<svg class="chart-svg" viewBox="0 0 '+CH_W+' '+H+'" role="img" aria-label="Grau de enchimento ao longo do tempo">';
+  s += eixoY(yMin, yMax, passo, H, unidade, yPos);
+  (metas || []).forEach(m => {
+    s += '<line x1="'+CH_PAD.l+'" x2="'+(CH_W-CH_PAD.r)+'" y1="'+yPos(m)+'" y2="'+yPos(m)+'" stroke="var(--accent)" stroke-width="2" stroke-dasharray="8 6"/>' +
+      '<text x="'+(CH_W-CH_PAD.r-4)+'" y="'+(yPos(m)-6)+'" text-anchor="end" class="chart-tick" fill="var(--accent)" style="fill:var(--accent)">meta '+fmt(m,0)+unidade+'</text>';
+  });
+  series.forEach(se => {
+    const pts = [];
+    se.valores.forEach((v, i) => { if (Number.isFinite(v)) pts.push([xPos(i), yPos(v), v, i]); });
+    if (pts.length > 1) s += '<polyline fill="none" stroke="'+se.cor+'" stroke-width="2.5" '+(se.dash?'stroke-dasharray="7 5"':'')+' points="'+pts.map(p => p[0]+','+p[1]).join(' ')+'"/>';
+    pts.forEach(p => {
+      s += '<g><title>'+esc(se.label)+' — '+esc(labels[p[3]])+': '+fmt(p[2],1)+unidade+'</title>' +
+        (se.dash
+          ? '<rect x="'+(p[0]-5)+'" y="'+(p[1]-5)+'" width="10" height="10" fill="var(--panel)" stroke="'+se.cor+'" stroke-width="2.5" transform="rotate(45 '+p[0]+' '+p[1]+')"/>'
+          : '<circle cx="'+p[0]+'" cy="'+p[1]+'" r="5" fill="'+se.cor+'" stroke="var(--panel)" stroke-width="2"/>') +
+        '</g>';
+    });
+  });
+  s += eixoX(labels, xPos, H);
+  return s + '</svg>';
+}
+
+// grupos: [{ label, barras: [{ pilha: [{ valor, cor, nome }] }] }]
+function svgBarras(grupos, unidade) {
+  const H = 270;
+  let max = 0;
+  grupos.forEach(g => g.barras.forEach(b => { max = Math.max(max, b.pilha.reduce((a, p) => a + p.valor, 0)); }));
+  if (max <= 0) max = 1;
+  const passo = niceStep(max, 5);
+  const yMax = Math.ceil(max * 1.08 / passo) * passo;
+  const plotW = CH_W - CH_PAD.l - CH_PAD.r, plotH = H - CH_PAD.t - CH_PAD.b;
+  const yPos = v => +(CH_PAD.t + plotH * (1 - v / yMax)).toFixed(1);
+  const larguraGrupo = plotW / grupos.length;
+  const nB = grupos[0] ? grupos[0].barras.length : 1;
+  const bw = Math.min(56, larguraGrupo * 0.7 / nB);
+  const xCentro = i => CH_PAD.l + larguraGrupo * (i + 0.5);
+
+  let s = '<svg class="chart-svg" viewBox="0 0 '+CH_W+' '+H+'" role="img" aria-label="Recarga estimada e realizada por mês">';
+  s += eixoY(0, yMax, passo, H, '', yPos);
+  grupos.forEach((g, gi) => {
+    g.barras.forEach((b, bi) => {
+      const x = +(xCentro(gi) - (nB * bw + (nB - 1) * 4) / 2 + bi * (bw + 4)).toFixed(1);
+      let acc = 0;
+      b.pilha.forEach(p => {
+        if (p.valor <= 0) return;
+        const y1 = yPos(acc + p.valor), y0 = yPos(acc);
+        s += '<rect x="'+x+'" y="'+y1+'" width="'+bw.toFixed(1)+'" height="'+Math.max(0, y0 - y1).toFixed(1)+'" fill="'+p.cor+'" rx="2"><title>'+esc(g.label)+' · '+esc(p.nome)+': '+fmt(p.valor,0)+' '+unidade+'</title></rect>';
+        acc += p.valor;
+      });
+      if (acc > 0) s += '<text x="'+(x + bw / 2)+'" y="'+(yPos(acc) - 6)+'" text-anchor="middle" class="chart-tick">'+fmt(acc,0)+'</text>';
+    });
+  });
+  s += eixoX(grupos.map(g => g.label), xCentro, H);
+  return s + '</svg>';
+}
+
 function renderCharts() {
-  if (typeof Chart === 'undefined') return;
+  const elG = document.getElementById('chart-g');
+  const elR = document.getElementById('chart-recarga');
+  if (!elG && !elR) return;
   const eventos = eventosFiltrados().slice().reverse();
   if (!eventos.length) return;
-  const palette = ['#5B8DB8','#E8871E','#6B9E78','#C1554D','#A78BC7','#D6B85A'];
+  const palette = ['#5B8DB8','#6B9E78','#A78BC7','#D6B85A','#4FB3B3','#C1554D'];
 
+  // --- G% ao longo do tempo ---
   const datas = Array.from(new Set(eventos.map(e => e.data))).sort();
-  const series = {};
-  const ordem = [];
+  const series = {}, ordem = [], metas = new Set();
   eventos.forEach((ev) => {
     const mill = findMill(ev.millId);
     ev.camaras.forEach((ce) => {
       const c = findCamara(mill, ce.camaraId);
       if (!c) return;
+      metas.add(Number(c.metaG));
       const key = c.nome + ' · ' + ev.millNome.replace('Moinho ', '');
       if (!series[key]) { series[key] = { antes: {}, depois: {} }; ordem.push(key); }
       const calc = calcCamaraEvento(c, ce, STATE.ref);
-      series[key].antes[ev.data] = Number(calc.Gcalc.toFixed(1));
-      if (calc.temRecarga) series[key].depois[ev.data] = Number(calc.Gdepois.toFixed(1));
+      series[key].antes[ev.data] = calc.Gcalc;
+      if (calc.temRecarga) series[key].depois[ev.data] = calc.Gdepois;
     });
   });
-  const datasets = [];
+  const linhas = [], legenda = [];
   ordem.forEach((key, i) => {
     const cor = palette[i % palette.length];
-    datasets.push({ label: key, data: datas.map(d => series[key].antes[d] !== undefined ? series[key].antes[d] : null), borderColor: cor, backgroundColor: cor, spanGaps: true, tension: 0.25 });
+    linhas.push({ label: key + ' (medido)', cor, valores: datas.map(d => series[key].antes[d] !== undefined ? series[key].antes[d] : null) });
+    legenda.push({ label: key + ' — medido', cor });
     if (Object.keys(series[key].depois).length) {
-      datasets.push({ label: key + ' (após recarga)', data: datas.map(d => series[key].depois[d] !== undefined ? series[key].depois[d] : null), borderColor: cor, backgroundColor: cor, borderDash: [6, 4], pointStyle: 'triangle', spanGaps: true, tension: 0.25 });
+      linhas.push({ label: key + ' (após recarga)', cor, dash: true, valores: datas.map(d => series[key].depois[d] !== undefined ? series[key].depois[d] : null) });
+      legenda.push({ label: key + ' — após recarga', cor, dash: true });
     }
   });
+  legenda.push({ label: 'Meta', cor: '#E8871E', dash: true });
+  if (elG) elG.innerHTML = legendaHtml(legenda) + svgLinhas(datas.map(formatDateBR), linhas, Array.from(metas), '%');
 
-  const ctxG = document.getElementById('chart-g');
-  if (ctxG) {
-    if (CHARTS.g) CHARTS.g.destroy();
-    CHARTS.g = new Chart(ctxG, { type: 'line', data: { labels: datas.map(formatDateBR), datasets }, options: chartOptions('%') });
-  }
-
+  // --- Recarga estimada x realizada por mês (kg) ---
   const byMonth = {};
   eventos.forEach((ev) => {
     const mill = findMill(ev.millId);
@@ -984,34 +1095,20 @@ function renderCharts() {
     });
   });
   const meses = Object.keys(byMonth).sort();
-  const ctxR = document.getElementById('chart-recarga');
-  if (ctxR) {
-    if (CHARTS.r) CHARTS.r.destroy();
-    CHARTS.r = new Chart(ctxR, {
-      type: 'bar',
-      data: {
-        labels: meses,
-        datasets: [
-          { label: 'Estimado', data: meses.map(m => byMonth[m].estimado), backgroundColor: '#5B8DB8' },
-          { label: 'Real · novas', data: meses.map(m => byMonth[m].nova), backgroundColor: '#E8871E', stack: 'real' },
-          { label: 'Real · usadas (reclassificadas)', data: meses.map(m => byMonth[m].usada), backgroundColor: '#D9A441', stack: 'real' },
-        ],
-      },
-      options: chartOptions('kg'),
-    });
-  }
+  const grupos = meses.map(m => ({
+    label: m.slice(5, 7) + '/' + m.slice(0, 4),
+    barras: [
+      { pilha: [{ valor: byMonth[m].estimado, cor: '#5B8DB8', nome: 'Estimado' }] },
+      { pilha: [{ valor: byMonth[m].nova, cor: '#E8871E', nome: 'Real · novas' }, { valor: byMonth[m].usada, cor: '#D9A441', nome: 'Real · usadas' }] },
+    ],
+  }));
+  if (elR) elR.innerHTML = legendaHtml([
+    { label: 'Estimado', cor: '#5B8DB8', barra: true },
+    { label: 'Real · novas', cor: '#E8871E', barra: true },
+    { label: 'Real · usadas (reclassificadas)', cor: '#D9A441', barra: true },
+  ]) + svgBarras(grupos, 'kg');
 }
 
-function chartOptions(unit) {
-  return {
-    responsive: true, maintainAspectRatio: false,
-    scales: {
-      x: { ticks: { color: '#9AA3B0', font: { size: 11 } }, grid: { color: '#3A414C' } },
-      y: { ticks: { color: '#9AA3B0', font: { size: 11 }, callback: v => v + unit }, grid: { color: '#3A414C' } },
-    },
-    plugins: { legend: { labels: { color: '#E9E7E1', font: { size: 11 } } } },
-  };
-}
 
 // ===========================================================================
 // Moinhos (config)
