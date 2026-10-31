@@ -160,6 +160,18 @@ body { font-family: var(--font-body); color: var(--text); }
 
 .chart-box { width:100%; height:280px; }
 .chart-box.short { height:240px; }
+
+.gauge-pair { display:flex; justify-content:space-around; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.gauge-box { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.event-card { display:flex; flex-direction:column; gap:12px; }
+.event-head { display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; }
+.event-date { font-family: var(--font-display); font-size:22px; font-weight:700; }
+.event-mill { display:flex; align-items:center; gap:6px; color: var(--accent-2); font-weight:600; font-size:13px; }
+.event-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.event-foot { display:flex; flex-direction:column; gap:4px; font-size:12.5px; color: var(--text-dim); }
+.event-foot b { color: var(--text); }
+.mix-editor-row select { background: var(--panel-2); border:1px solid var(--line); color: var(--text); padding:6px 8px; border-radius:6px; font-family: var(--font-mono); font-size:12.5px; }
+.field select:disabled { opacity:0.6; }
 </style>
 </head>
 <body>
@@ -305,25 +317,75 @@ function calcularMedicao(camara, alturas, ref) {
   return { hMedio, Gcalc, Vi, VbAtual, VbMeta, deficitVol, deficitMassa, superficieAdicionada, densidadeMedia: media.densidade, nValidas: validas.length };
 }
 
-function cameraGaugeSvg(D, hMedio, metaG, Gcalc, size) {
+// ---------------------------------------------------------------------------
+// Representação gráfica do grau de enchimento
+// ---------------------------------------------------------------------------
+// G% é a fração da ÁREA da seção transversal ocupada pela carga. Para desenhar
+// corretamente, calcula-se a altura do segmento circular cuja área é G% do
+// círculo. Assim a carga e a linha da meta ficam na mesma escala: se G < meta,
+// o nível da carga fica sempre ABAIXO da linha tracejada.
+function segAreaFrac(t) { // t = altura da carga / D  (0..1)
+  const x = 1 - 2 * t;
+  return (Math.acos(x) - x * Math.sqrt(Math.max(0, 1 - x * x))) / Math.PI;
+}
+function alturaCargaFrac(Gpct) { // inverso de segAreaFrac por bisseção
+  const a = Math.max(0, Math.min(1, (Gpct || 0) / 100));
+  let lo = 0, hi = 1;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (segAreaFrac(m) < a) lo = m; else hi = m; }
+  return (lo + hi) / 2;
+}
+
+function gaugeSvg(G, metaG, size, opts) {
+  opts = opts || {};
   size = size || 132;
   const r = 90, cx = 100, cy = 100;
-  const frac = D > 0 ? Math.max(0, Math.min(1, hMedio / D)) : 0;
-  const hOverDMeta = 0.5 - (metaG - 50) / 125;
-  const metaFrac = Math.max(0, Math.min(1, hOverDMeta));
+  const tem = Number.isFinite(G) && !opts.vazio;
+  const fillY = cy + r - alturaCargaFrac(tem ? G : 0) * 2 * r;
+  const metaY = cy + r - alturaCargaFrac(metaG) * 2 * r;
+  const meiaCorda = Math.sqrt(Math.max(0, r * r - (metaY - cy) * (metaY - cy)));
   const clipId = 'clip-' + uid();
-  const y0 = cy - r;
-  const fillY = cy + r - frac * (2 * r);
-  const metaY = cy + r - metaFrac * (2 * r);
-  const tone = statusFromG(Gcalc, metaG).tone;
-  const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : 'var(--bad)';
-  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 200 200">' +
-    '<defs><clipPath id="'+clipId+'"><rect x="0" y="'+fillY+'" width="200" height="'+(2*r-(fillY-y0))+'"/></clipPath></defs>' +
-    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="var(--panel-2)" stroke="var(--line)" stroke-width="2"/>' +
-    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+toneColor+'" opacity="0.85" clip-path="url(#'+clipId+')"/>' +
-    '<line x1="'+(cx-r)+'" x2="'+(cx+r)+'" y1="'+metaY+'" y2="'+metaY+'" stroke="var(--accent)" stroke-dasharray="4 3" stroke-width="1.5"/>' +
-    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="2"/>' +
-  '</svg>';
+  const tone = tem ? statusFromG(G, metaG).tone : 'muted';
+  const toneColor = tone === 'ok' ? 'var(--ok)' : tone === 'warn' ? 'var(--warn)' : tone === 'bad' ? 'var(--bad)' : 'var(--line)';
+  let svg = '<svg width="'+size+'" height="'+size+'" viewBox="0 0 200 200" role="img" aria-label="Grau de enchimento '+(tem?fmt(G,1)+'%':'sem medição')+', meta '+metaG+'%">' +
+    '<defs><clipPath id="'+clipId+'"><rect x="0" y="'+fillY+'" width="200" height="'+(cy + r - fillY)+'"/></clipPath></defs>' +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="var(--panel-2)"/>';
+  if (tem) svg += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="'+toneColor+'" opacity="0.85" clip-path="url(#'+clipId+')"/>';
+  svg += '<line x1="'+(cx-meiaCorda)+'" x2="'+(cx+meiaCorda)+'" y1="'+metaY+'" y2="'+metaY+'" stroke="var(--accent)" stroke-dasharray="7 5" stroke-width="3"/>' +
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="3"/>';
+  if (opts.texto !== false) {
+    svg += '<text x="'+cx+'" y="'+(cy - 18)+'" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="34" font-weight="600" fill="var(--text)">'+(tem?fmt(G,1)+'%':'—')+'</text>' +
+      '<text x="'+cx+'" y="'+(cy + 8)+'" text-anchor="middle" font-family="IBM Plex Sans, sans-serif" font-size="17" fill="var(--accent)">meta '+fmt(metaG,0)+'%</text>';
+  }
+  return svg + '</svg>';
+}
+
+// ---------------------------------------------------------------------------
+// Cálculo de uma câmara dentro de um evento (medição + recarga)
+// ---------------------------------------------------------------------------
+function calcCamaraEvento(camara, ce, ref) {
+  const calc = calcularMedicao(camara, ce.alturas || [], ref);
+  const linhas = ce.recargaLinhas || [];
+  let recargaT = 0, novaT = 0, usadaT = 0, volAdd = 0;
+  linhas.forEach((l) => {
+    const m = Number(l.massaT) || 0;
+    const r = lookupRef(ref, l.diam);
+    recargaT += m;
+    volAdd += m / (r.densidade || 4.7);
+    if (l.origem === 'usada') usadaT += m; else novaT += m;
+  });
+  const temRecarga = recargaT > 0;
+  const Gdepois = temRecarga && calc.Vi > 0 ? (calc.VbAtual + volAdd) / calc.Vi * 100 : null;
+  const Gatual = temRecarga ? Gdepois : calc.Gcalc;
+  const faltaVol = calc.VbMeta - calc.Vi * Gatual / 100;
+  const faltaT = faltaVol > 0 ? faltaVol * calc.densidadeMedia : 0;
+  return Object.assign(calc, { recargaT, novaT, usadaT, volAdd, temRecarga, Gdepois, Gatual, faltaT });
+}
+
+function linhaToKg(l) { return Math.round((Number(l.massaT) || 0) * 1000); }
+function origemLabel(o) { return o === 'usada' ? 'usada/reclass.' : o === 'mista' ? 'mista' : 'nova'; }
+function descreveRecarga(linhas) {
+  if (!linhas || !linhas.length) return '—';
+  return linhas.map(l => 'Ø'+l.diam+' '+origemLabel(l.origem)+': '+fmt(linhaToKg(l),0)+' kg').join('<br>');
 }
 
 // ===========================================================================
@@ -332,18 +394,20 @@ function cameraGaugeSvg(D, hMedio, metaG, Gcalc, size) {
 const STATE = {
   tab: 'painel',
   mills: MOINHOS_PADRAO,
-  records: [],
+  events: [],   // um evento = medição de um moinho numa data (todas as câmaras) + recargas
   ref: SUPERFICIE_REF_PADRAO,
   loaded: false,
-  medForm: { millId: null, camaraId: null, data: todayISO(), recargaLinhas: [], editingId: null, editAlturas: null, editObs: '' },
+  medForm: { millId: null, data: todayISO(), alturas: {}, obs: '', editingId: null },
+  recForm: { eventId: null, linhas: {} },
   historicoFilterMill: 'todos',
 };
 const CHARTS = {};
+const KEY_EVENTS = 'measurement-events';
+const KEY_OLD_RECORDS = 'measurement-records';
 
 // ===========================================================================
-// Storage
+// Storage (Apps Script)
 // ===========================================================================
-// Ponte com o backend do Apps Script (google.script.run → Promise)
 function gasCall(fn) {
   const args = Array.prototype.slice.call(arguments, 1);
   return new Promise((resolve, reject) => {
@@ -363,51 +427,78 @@ function saveKey(key, value) {
   return SAVE_QUEUE;
 }
 
+// Converte o formato antigo (um registro por câmara) em eventos por moinho/data.
+function migrarRegistrosAntigos(records) {
+  const map = {};
+  (records || []).forEach((r) => {
+    const k = r.millId + '|' + r.data;
+    if (!map[k]) map[k] = { id: uid(), millId: r.millId, millNome: r.millNome, data: r.data, obs: '', camaras: [], registradoEm: r.registradoEm || new Date().toISOString() };
+    const ev = map[k];
+    ev.camaras = ev.camaras.filter(c => c.camaraId !== r.camaraId);
+    ev.camaras.push({ camaraId: r.camaraId, camaraNome: r.camaraNome, alturas: r.alturas || [], recargaLinhas: r.recargaLinhas || [] });
+    if (r.obs) ev.obs = ev.obs ? ev.obs + ' | ' + r.obs : r.obs;
+  });
+  return Object.keys(map).map(k => map[k]);
+}
+
 async function loadAll() {
   try {
-    const d = await gasCall('getAllData', ['mills-config', 'measurement-records', 'corpos-moedores-ref']);
+    const d = await gasCall('getAllData', ['mills-config', KEY_EVENTS, KEY_OLD_RECORDS, 'corpos-moedores-ref']);
     try { if (d['mills-config']) STATE.mills = JSON.parse(d['mills-config']); } catch(e) {}
-    try { if (d['measurement-records']) STATE.records = JSON.parse(d['measurement-records']); } catch(e) {}
     try { if (d['corpos-moedores-ref']) STATE.ref = JSON.parse(d['corpos-moedores-ref']); } catch(e) {}
+    try {
+      if (d[KEY_EVENTS]) STATE.events = JSON.parse(d[KEY_EVENTS]);
+      else if (d[KEY_OLD_RECORDS]) {
+        STATE.events = migrarRegistrosAntigos(JSON.parse(d[KEY_OLD_RECORDS]));
+        if (STATE.events.length) persistEvents();
+      }
+    } catch(e) { console.error(e); }
   } catch(e) {
     console.error(e);
     setTimeout(() => flash('Não foi possível carregar os dados salvos.'), 0);
   }
   STATE.loaded = true;
-  const firstMill = STATE.mills[0];
-  STATE.medForm.millId = firstMill ? firstMill.id : null;
-  STATE.medForm.camaraId = firstMill && firstMill.camaras[0] ? firstMill.camaras[0].id : null;
+  STATE.medForm.millId = STATE.mills[0] ? STATE.mills[0].id : null;
 }
 function persistMills() { return saveKey('mills-config', STATE.mills); }
-function persistRecords() { return saveKey('measurement-records', STATE.records); }
+function persistEvents() { return saveKey(KEY_EVENTS, STATE.events); }
 function persistRef() { return saveKey('corpos-moedores-ref', STATE.ref); }
 
 function flash(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 2600);
+  clearTimeout(flash._t);
+  flash._t = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
 function findMill(id) { return STATE.mills.find(m => m.id === id); }
 function findCamara(mill, id) { return mill ? mill.camaras.find(c => c.id === id) : null; }
+function findEvent(id) { return STATE.events.find(e => e.id === id); }
+function eventosOrdenados() {
+  return STATE.events.slice().sort((a, b) => (a.data === b.data ? (a.registradoEm < b.registradoEm ? 1 : -1) : (a.data < b.data ? 1 : -1)));
+}
 function latestByChamber() {
   const map = {};
-  STATE.records.forEach((rec) => { if (!map[rec.camaraId] || rec.data > map[rec.camaraId].data) map[rec.camaraId] = rec; });
+  eventosOrdenados().slice().reverse().forEach((ev) => {
+    (ev.camaras || []).forEach((ce) => { map[ce.camaraId] = { ev, ce }; });
+  });
   return map;
 }
+function alturasValidas(arr) { return (arr || []).filter(v => v !== '' && v !== null && v !== undefined && !Number.isNaN(Number(v))).length; }
 
 // ===========================================================================
 // Render principal
 // ===========================================================================
-function setTab(tab) { STATE.tab = tab; render(); }
+function setTab(tab) { STATE.tab = tab; render(); window.scrollTo(0, 0); }
 
 function render() {
   renderTabs();
   const content = document.getElementById('content');
   if (!STATE.loaded) { content.innerHTML = '<p style="color:var(--text-dim)">Carregando dados salvos…</p>'; return; }
   if (STATE.tab === 'painel') content.innerHTML = renderPainel();
-  else if (STATE.tab === 'medicao') { content.innerHTML = renderMedicao(); updateResultPanel(); renderRecargaLinhas(); }
+  else if (STATE.tab === 'medicao') { content.innerHTML = renderMedicao(); atualizarMedicao(); }
+  else if (STATE.tab === 'recarga') { content.innerHTML = renderRecarga(); atualizarRecarga(); }
   else if (STATE.tab === 'historico') { content.innerHTML = renderHistorico(); setTimeout(renderCharts, 0); }
   else if (STATE.tab === 'moinhos') content.innerHTML = renderMoinhos();
 }
@@ -416,6 +507,7 @@ function renderTabs() {
   const tabs = [
     ['painel', 'gauge', 'Painel'],
     ['medicao', 'ruler', 'Nova medição'],
+    ['recarga', 'package', 'Recarga'],
     ['historico', 'history', 'Histórico'],
     ['moinhos', 'settings', 'Moinhos'],
   ];
@@ -425,29 +517,37 @@ function renderTabs() {
   document.querySelector('.brand-mark').innerHTML = icon('gauge', 20);
 }
 
+function resultRow(label, value, tone, highlight) {
+  return '<div class="result-row'+(highlight?' highlight':'')+'"><span class="result-label">'+label+'</span><span class="result-value'+(tone?' tone-'+tone:'')+'">'+value+'</span></div>';
+}
+function statusChip(G, metaG) {
+  if (!Number.isFinite(G)) return '—';
+  const st = statusFromG(G, metaG);
+  return '<span class="status-chip status-'+st.tone+'">'+st.label+'</span>';
+}
+
 // ===========================================================================
 // Painel
 // ===========================================================================
 function renderPainel() {
   const latest = latestByChamber();
-  let html = '<div class="stack"><div class="section-head"><h1>Painel geral</h1><p>Situação mais recente de cada câmara, comparada à meta de enchimento.</p></div>';
+  let html = '<div class="stack"><div class="section-head"><h1>Painel geral</h1><p>Situação mais recente de cada câmara (já considerando a última recarga), comparada à meta de enchimento — a linha tracejada.</p></div>';
 
   STATE.mills.forEach((m) => {
     html += '<div class="mill-block"><div class="mill-block-head">'+icon('factory',16)+'<span>'+esc(m.nome)+'</span><span class="pill">'+esc(m.tipo)+'</span></div><div class="cards-grid">';
     m.camaras.forEach((c) => {
-      const rec = latest[c.id];
-      const calc = rec ? calcularMedicao(c, rec.alturas, STATE.ref) : null;
-      const tone = calc ? statusFromG(calc.Gcalc, c.metaG).tone : 'muted';
-      const label = calc ? statusFromG(calc.Gcalc, c.metaG).label : 'Sem medição';
+      const L = latest[c.id];
+      const calc = L ? calcCamaraEvento(c, L.ce, STATE.ref) : null;
       html += '<div class="card"><div class="card-top"><div><div class="card-title">'+esc(c.nome)+'</div><div class="card-sub">Ø '+fmt(c.diametro,2)+' m · L '+fmt(c.comprimento,2)+' m · meta '+c.metaG+'%</div></div>' +
-        cameraGaugeSvg(c.diametro, calc?calc.hMedio:0, c.metaG, calc?calc.Gcalc:0, 90) + '</div>';
+        gaugeSvg(calc ? calc.Gatual : NaN, c.metaG, 96) + '</div>';
       if (calc) {
+        const st = statusFromG(calc.Gatual, c.metaG);
         html += '<div class="metric-row">' +
           '<div class="metric"><div class="metric-label">G% medido</div><div class="metric-value">'+fmt(calc.Gcalc,1)+'%</div></div>' +
-          '<div class="metric"><div class="metric-label">h médio</div><div class="metric-value">'+fmt(calc.hMedio,2)+' m</div></div>' +
-          '<div class="metric"><div class="metric-label">Data</div><div class="metric-value small">'+formatDateBR(rec.data)+'</div></div></div>';
-        html += '<div class="status status-'+tone+'">'+icon(tone==='ok'?'check':tone==='warn'?'alert':'down',14)+' '+label +
-          (calc.deficitMassa>0 ? '<span class="status-extra">· repor ≈ '+fmt(calc.deficitMassa,3)+' t</span>' : '') + '</div>';
+          '<div class="metric"><div class="metric-label">Após recarga</div><div class="metric-value">'+(calc.temRecarga?fmt(calc.Gdepois,1)+'%':'—')+'</div></div>' +
+          '<div class="metric"><div class="metric-label">Data</div><div class="metric-value small">'+formatDateBR(L.ev.data)+'</div></div></div>';
+        html += '<div class="status status-'+st.tone+'">'+icon(st.tone==='ok'?'check':st.tone==='warn'?'alert':'down',14)+' '+st.label +
+          (calc.faltaT>0 ? '<span class="status-extra">· faltam ≈ '+fmtKg(calc.faltaT)+'</span>' : '') + '</div>';
       } else {
         html += '<div class="empty-mini">Nenhuma medição registrada ainda.</div>';
       }
@@ -461,277 +561,360 @@ function renderPainel() {
 }
 
 // ===========================================================================
-// Nova Medição
+// Nova medição — todas as câmaras do moinho na mesma data
 // ===========================================================================
 function renderMedicao() {
   if (!STATE.mills.length) return '<div class="stack"><p>Cadastre um moinho na aba "Moinhos" primeiro.</p></div>';
-  let mill = findMill(STATE.medForm.millId) || STATE.mills[0];
-  STATE.medForm.millId = mill.id;
-  let camara = findCamara(mill, STATE.medForm.camaraId) || mill.camaras[0];
-  if (!camara) return '<div class="stack"><p>Esse moinho não tem câmaras cadastradas.</p></div>';
-  STATE.medForm.camaraId = camara.id;
+  const f = STATE.medForm;
+  const mill = findMill(f.millId) || STATE.mills[0];
+  f.millId = mill.id;
+  if (!mill.camaras.length) return '<div class="stack"><p>Esse moinho não tem câmaras cadastradas.</p></div>';
+  const editando = !!f.editingId;
 
-  const n = camara.nMedicoes || 5;
-  const editando = !!STATE.medForm.editingId;
-  let html = '<div class="stack"><div class="section-head"><h1>'+(editando?'Editar medição':'Nova medição')+'</h1><p>Informe as alturas medidas na câmara para calcular o grau de enchimento automaticamente.</p></div>';
+  let html = '<div class="stack"><div class="section-head"><h1>'+(editando?'Editar medição':'Nova medição')+'</h1>' +
+    '<p>Informe as alturas livres (h) de todas as câmaras do moinho na data da medição. Depois registre a recarga na aba "Recarga".</p></div>';
 
   if (editando) {
-    html += '<div class="edit-banner">'+icon('edit',14)+' Editando registro de '+formatDateBR(STATE.medForm.data)+' — '+esc(camara.nome)+
+    html += '<div class="edit-banner">'+icon('edit',14)+' Editando a medição de '+esc(mill.nome)+
       ' <button class="btn-ghost" style="margin:0 0 0 8px;display:inline-flex" onclick="cancelEdit()">Cancelar edição</button></div>';
   }
 
   html += '<div class="form-grid">' +
-    '<label class="field"><span>Moinho</span><select id="f-mill" data-action="changeMillCamara">' +
+    '<label class="field"><span>Moinho</span><select id="f-mill" onchange="changeMedMill(this.value)" '+(editando?'disabled':'')+'>' +
       STATE.mills.map(m => '<option value="'+m.id+'" '+(m.id===mill.id?'selected':'')+'>'+esc(m.nome)+'</option>').join('') + '</select></label>' +
-    '<label class="field"><span>Câmara</span><select id="f-camara" data-action="changeMillCamara">' +
-      mill.camaras.map(c => '<option value="'+c.id+'" '+(c.id===camara.id?'selected':'')+'>'+esc(c.nome)+'</option>').join('') + '</select></label>' +
-    '<label class="field"><span>Data da medição</span><input type="date" id="f-data" value="'+STATE.medForm.data+'" /></label>' +
+    '<label class="field"><span>Data da medição</span><input type="date" id="f-data" value="'+f.data+'" onchange="STATE.medForm.data=this.value;atualizarMedicao()" /></label>' +
   '</div>';
+  html += '<div id="med-aviso"></div>';
 
-  html += '<div class="two-col"><div class="panel">' +
-    '<div class="panel-title">'+icon('ruler',15)+' Medições de altura (h) — '+n+' pontos</div>' +
-    '<div class="alturas-grid" id="alturas-grid">';
-  for (let i=0;i<n;i++) {
-    const val = (editando && STATE.medForm.editAlturas && STATE.medForm.editAlturas[i]!==undefined) ? STATE.medForm.editAlturas[i] : '';
-    html += '<label class="field small"><span>Ponto '+(i+1)+' (m)</span><input type="number" step="0.01" min="0" class="f-altura" data-idx="'+i+'" value="'+val+'" placeholder="0,00" oninput="onMedicaoInput()" /></label>';
-  }
-  html += '</div>' +
-    '<label class="field" style="margin-top:12px"><span>Observações</span><textarea id="f-obs" rows="2" placeholder="Ex.: parada programada, condição do revestimento, etc.">'+esc(STATE.medForm.editObs||'')+'</textarea></label>' +
-  '</div>';
+  mill.camaras.forEach((c) => {
+    const n = c.nMedicoes || 5;
+    const vals = f.alturas[c.id] || [];
+    html += '<div class="two-col"><div class="panel">' +
+      '<div class="panel-title">'+icon('ruler',15)+' '+esc(c.nome)+' — '+n+' pontos de altura (m)</div>' +
+      '<div class="alturas-grid">';
+    for (let i = 0; i < n; i++) {
+      const v = vals[i] !== undefined && vals[i] !== null ? vals[i] : '';
+      html += '<label class="field small"><span>Ponto '+(i+1)+'</span><input type="number" step="0.01" min="0" value="'+v+'" placeholder="0,00" oninput="onAlturaInput(\''+c.id+'\','+i+',this.value)" /></label>';
+    }
+    html += '</div><div class="mix-note">Ø '+fmt(c.diametro,2)+' m · L '+fmt(c.comprimento,2)+' m · meta '+c.metaG+'%</div></div>' +
+      '<div class="panel" id="res-'+c.id+'"></div></div>';
+  });
 
-  html += '<div class="panel" id="resultado-panel"></div></div>';
-
-  html += '<div class="panel">' +
-    '<div class="panel-title">'+icon('package',15)+' Recarga real efetuada nesta data (opcional)</div>' +
-    '<p class="ref-note">A estimativa acima é só a massa total necessária. A decisão de quais diâmetros usar é da equipe — registre aqui o que foi efetivamente carregado, linha por linha.</p>' +
-    '<div id="recarga-linhas"></div>' +
-    '<button class="btn-ghost" onclick="addRecargaLinha()">'+icon('plus',13)+' Adicionar diâmetro usado na recarga</button>' +
-    '<div id="recarga-total" style="margin-top:10px"></div>' +
-  '</div>';
-
-  html += '<button class="btn-primary btn-wide" id="btn-salvar" onclick="salvarMedicao()">'+icon(editando?'edit':'plus',16)+' <span id="btn-salvar-label">'+(editando?'Salvar alterações':'Salvar medição')+'</span></button></div>';
+  html += '<label class="field"><span>Observações</span><textarea id="f-obs" rows="2" placeholder="Ex.: parada programada, condição do revestimento, etc." oninput="STATE.medForm.obs=this.value">'+esc(f.obs||'')+'</textarea></label>';
+  html += '<button class="btn-primary btn-wide" id="btn-salvar" onclick="salvarMedicao()">'+icon(editando?'edit':'plus',16)+' <span id="btn-salvar-label"></span></button></div>';
   return html;
 }
 
-function onMedicaoInput() { updateResultPanel(); }
-
-function readAlturas() {
-  return Array.from(document.querySelectorAll('.f-altura')).map(inp => inp.value);
+function onAlturaInput(camId, idx, value) {
+  const f = STATE.medForm;
+  f.alturas[camId] = f.alturas[camId] || [];
+  f.alturas[camId][idx] = value;
+  atualizarMedicao(camId);
 }
 
-function updateResultPanel() {
-  const mill = findMill(STATE.medForm.millId);
-  const camara = findCamara(mill, STATE.medForm.camaraId);
-  if (!camara) return;
-  const alturas = readAlturas();
-  const calc = calcularMedicao(camara, alturas, STATE.ref);
-  const podeSlavar = calc.nValidas === camara.nMedicoes;
+function changeMedMill(id) {
+  STATE.medForm.millId = id;
+  STATE.medForm.alturas = {};
+  render();
+}
 
-  let html = '<div class="panel-title">'+icon('gauge',15)+' Resultado do cálculo</div>' +
-    '<div class="gauge-center">'+cameraGaugeSvg(camara.diametro, calc.hMedio, camara.metaG, calc.Gcalc, 150)+'</div>' +
-    '<div class="result-list">' +
-    resultRow('h médio', fmt(calc.hMedio,3)+' m') +
-    resultRow('G% calculado', fmt(calc.Gcalc,2)+' %', null, true) +
-    resultRow('Meta da câmara', camara.metaG+' %') +
-    resultRow('Volume útil (Vi)', fmt(calc.Vi,2)+' m³') +
-    resultRow('Volume de carga atual (Vb)', fmt(calc.VbAtual,2)+' m³') +
-    resultRow('Volume de carga meta', fmt(calc.VbMeta,2)+' m³') +
-    resultRow('Déficit de volume', calc.deficitVol>0?fmt(calc.deficitVol,2)+' m³':'sem déficit', calc.deficitVol>0?'bad':'ok') +
-    resultRow('Recarga necessária estimada', calc.deficitMassa>0?fmtKg(calc.deficitMassa):'—', calc.deficitMassa>0?'bad':'ok', true) +
-    resultRow('Superfície de moagem a adicionar', calc.deficitMassa>0?fmt(calc.superficieAdicionada,1)+' m²':'—', null, true) +
-    '</div>';
+function estadoMedicao() {
+  const f = STATE.medForm;
+  const mill = findMill(f.millId);
+  let completas = 0, parciais = [];
+  (mill ? mill.camaras : []).forEach((c) => {
+    const n = alturasValidas(f.alturas[c.id]);
+    if (n === c.nMedicoes) completas++;
+    else if (n > 0) parciais.push(c.nome);
+  });
+  return { mill, completas, parciais };
+}
 
-  if (calc.deficitMassa > 0) {
-    html += '<div class="mix-note" style="margin-top:10px">Estimativa calculada com a densidade média de referência da câmara ('+fmt(calc.densidadeMedia,2)+' t/m³, conforme a composição teórica cadastrada em "Moinhos"). Decida os diâmetros a usar e registre no painel ao lado.</div>';
-  }
+function atualizarMedicao(soCamara) {
+  const f = STATE.medForm;
+  const mill = findMill(f.millId);
+  if (!mill) return;
+  mill.camaras.forEach((c) => {
+    if (soCamara && soCamara !== c.id) return;
+    const el = document.getElementById('res-' + c.id);
+    if (!el) return;
+    const calc = calcularMedicao(c, f.alturas[c.id] || [], STATE.ref);
+    const tem = calc.nValidas > 0;
+    el.innerHTML = '<div class="panel-title">'+icon('gauge',15)+' Resultado — '+esc(c.nome)+'</div>' +
+      '<div class="gauge-center">'+gaugeSvg(tem ? calc.Gcalc : NaN, c.metaG, 150)+'</div>' +
+      '<div class="result-list">' +
+      resultRow('Pontos preenchidos', calc.nValidas+' de '+c.nMedicoes, calc.nValidas===c.nMedicoes?'ok':null) +
+      resultRow('h médio', tem?fmt(calc.hMedio,3)+' m':'—') +
+      resultRow('G% calculado', tem?fmt(calc.Gcalc,2)+' %':'—', null, true) +
+      resultRow('Volume útil (Vi)', fmt(calc.Vi,2)+' m³') +
+      resultRow('Volume de carga atual / meta', tem?fmt(calc.VbAtual,2)+' / '+fmt(calc.VbMeta,2)+' m³':'—') +
+      resultRow('Recarga necessária estimada', tem&&calc.deficitMassa>0?fmtKg(calc.deficitMassa):'—', tem&&calc.deficitMassa>0?'bad':'ok', true) +
+      '</div>';
+  });
 
-  document.getElementById('resultado-panel').innerHTML = html;
+  const st = estadoMedicao();
   const btn = document.getElementById('btn-salvar');
   const label = document.getElementById('btn-salvar-label');
   if (btn) {
-    btn.disabled = !podeSlavar;
-    const salvarLabel = STATE.medForm.editingId ? 'Salvar alterações' : 'Salvar medição';
-    label.textContent = podeSlavar ? salvarLabel : 'Preencha as '+camara.nMedicoes+' medições para salvar';
+    let msg, ok = false;
+    if (st.parciais.length) msg = 'Complete os pontos de: ' + st.parciais.join(', ');
+    else if (!st.completas) msg = 'Preencha as alturas de pelo menos uma câmara';
+    else { ok = true; msg = f.editingId ? 'Salvar alterações' : 'Salvar medição ('+st.completas+' de '+st.mill.camaras.length+' câmaras)'; }
+    btn.disabled = !ok;
+    label.textContent = msg;
+  }
+  const aviso = document.getElementById('med-aviso');
+  if (aviso) {
+    const existente = !f.editingId && STATE.events.find(e => e.millId === f.millId && e.data === f.data);
+    aviso.innerHTML = existente ? '<div class="edit-banner">'+icon('alert',14)+' Já existe uma medição deste moinho em '+formatDateBR(f.data)+'. As câmaras preenchidas aqui vão substituir as desse dia (recargas já registradas são mantidas).</div>' : '';
   }
 }
-
-function resultRow(label, value, tone, highlight) {
-  return '<div class="result-row'+(highlight?' highlight':'')+'"><span class="result-label">'+label+'</span><span class="result-value'+(tone?' tone-'+tone:'')+'">'+value+'</span></div>';
-}
-
-// ---------------------------------------------------------------------------
-// Linhas de recarga real (diâmetro + massa + origem)
-// ---------------------------------------------------------------------------
-function renderRecargaLinhas() {
-  const wrap = document.getElementById('recarga-linhas');
-  const totalWrap = document.getElementById('recarga-total');
-  if (!wrap) return;
-  const linhas = STATE.medForm.recargaLinhas;
-  if (!linhas.length) {
-    wrap.innerHTML = '<div class="empty-mini">Nenhum diâmetro registrado ainda para esta recarga.</div>';
-    if (totalWrap) totalWrap.innerHTML = '';
-    return;
-  }
-  const opcoesDiam = STATE.ref.slice().sort((a,b)=>b.diam-a.diam).map(r=>r.diam);
-  wrap.innerHTML = linhas.map((l, i) =>
-    '<div class="mix-editor-row">' +
-      '<select onchange="updateRecargaLinha('+i+',\'diam\',Number(this.value))">' +
-        opcoesDiam.map(d => '<option value="'+d+'" '+(d===l.diam?'selected':'')+'>Ø '+d+' mm</option>').join('') +
-      '</select>' +
-      '<input type="number" step="1" min="0" value="'+(l.massaKg||'')+'" placeholder="kg" style="width:90px" onchange="updateRecargaLinha('+i+',\'massaKg\',Number(this.value))" /><span>kg ·</span>' +
-      '<select onchange="updateRecargaLinha('+i+',\'origem\',this.value)">' +
-        '<option value="nova" '+(l.origem==='nova'?'selected':'')+'>Nova</option>' +
-        '<option value="usada" '+(l.origem==='usada'?'selected':'')+'>Usada/reclassificada</option>' +
-        '<option value="mista" '+(l.origem==='mista'?'selected':'')+'>Mista</option>' +
-      '</select>' +
-      '<button class="icon-btn danger" onclick="removeRecargaLinha('+i+')">'+icon('trash',13)+'</button>' +
-    '</div>'
-  ).join('');
-  const totalKg = linhas.reduce((a,l) => a + (Number(l.massaKg)||0), 0);
-  if (totalWrap) totalWrap.innerHTML = '<div class="result-row highlight"><span class="result-label">Total registrado nesta recarga</span><span class="result-value">'+fmt(totalKg,0)+' kg</span></div>';
-}
-
-function addRecargaLinha() {
-  const opcoesDiam = STATE.ref.slice().sort((a,b)=>b.diam-a.diam);
-  STATE.medForm.recargaLinhas.push({ diam: opcoesDiam[0] ? opcoesDiam[0].diam : 0, massaKg: '', origem: 'nova' });
-  renderRecargaLinhas();
-}
-function removeRecargaLinha(i) { STATE.medForm.recargaLinhas.splice(i,1); renderRecargaLinhas(); }
-function updateRecargaLinha(i, field, value) { STATE.medForm.recargaLinhas[i][field] = value; renderRecargaLinhas(); }
 
 function salvarMedicao() {
-  const mill = findMill(STATE.medForm.millId);
-  const camara = findCamara(mill, STATE.medForm.camaraId);
-  if (!camara) return;
-  const alturas = readAlturas();
-  const calc = calcularMedicao(camara, alturas, STATE.ref);
-  if (calc.nValidas !== camara.nMedicoes) return;
+  const f = STATE.medForm;
+  const st = estadoMedicao();
+  if (!st.mill || st.parciais.length || !st.completas) return;
+  const mill = st.mill;
+  const data = document.getElementById('f-data').value || f.data;
 
-  const data = document.getElementById('f-data').value || STATE.medForm.data;
-  const obs = document.getElementById('f-obs').value;
+  let ev = f.editingId ? findEvent(f.editingId) : STATE.events.find(e => e.millId === mill.id && e.data === data);
+  if (!ev) {
+    ev = { id: uid(), millId: mill.id, millNome: mill.nome, data, obs: '', camaras: [], registradoEm: new Date().toISOString() };
+    STATE.events.push(ev);
+  }
+  ev.data = data;
+  ev.millNome = mill.nome;
+  ev.obs = f.obs || '';
+  ev.editadoEm = new Date().toISOString();
 
-  const linhasValidas = STATE.medForm.recargaLinhas
-    .filter(l => l.massaKg !== '' && Number(l.massaKg) > 0)
-    .map(l => ({ diam: Number(l.diam), massaT: Number(l.massaKg)/1000, origem: l.origem }));
-  const recargaRealT = linhasValidas.length ? linhasValidas.reduce((a,l)=>a+l.massaT,0) : null;
-
-  if (STATE.medForm.editingId) {
-    const idx = STATE.records.findIndex(r => r.id === STATE.medForm.editingId);
-    if (idx !== -1) {
-      STATE.records[idx] = Object.assign({}, STATE.records[idx], {
-        millId: mill.id, millNome: mill.nome, camaraId: camara.id, camaraNome: camara.nome,
-        data, alturas: alturas.map(Number), recargaLinhas: linhasValidas, recargaRealT, obs,
-        editadoEm: new Date().toISOString(),
-      });
+  mill.camaras.forEach((c) => {
+    const vals = f.alturas[c.id] || [];
+    const n = alturasValidas(vals);
+    const anterior = ev.camaras.find(x => x.camaraId === c.id);
+    if (n === c.nMedicoes) {
+      const alturas = vals.slice(0, c.nMedicoes).map(Number);
+      if (anterior) { anterior.alturas = alturas; anterior.camaraNome = c.nome; }
+      else ev.camaras.push({ camaraId: c.id, camaraNome: c.nome, alturas, recargaLinhas: [] });
+    } else if (f.editingId && anterior && n === 0) {
+      ev.camaras = ev.camaras.filter(x => x.camaraId !== c.id);
     }
-    persistRecords();
-    STATE.medForm.editingId = null;
-    STATE.medForm.editAlturas = null;
-    STATE.medForm.editObs = '';
-    STATE.medForm.recargaLinhas = [];
-    flash('Medição atualizada com sucesso.');
+  });
+  // mantém a ordem das câmaras igual à do cadastro
+  ev.camaras.sort((a, b) => mill.camaras.findIndex(c => c.id === a.camaraId) - mill.camaras.findIndex(c => c.id === b.camaraId));
+
+  persistEvents();
+  const editou = !!f.editingId;
+  STATE.medForm = { millId: mill.id, data: todayISO(), alturas: {}, obs: '', editingId: null };
+  if (editou) {
+    flash('Medição atualizada.');
     setTab('historico');
   } else {
-    STATE.records.push({
-      id: uid(), millId: mill.id, millNome: mill.nome, camaraId: camara.id, camaraNome: camara.nome,
-      data, alturas: alturas.map(Number), recargaLinhas: linhasValidas, recargaRealT, obs,
-      registradoEm: new Date().toISOString(),
-    });
-    persistRecords();
-    STATE.medForm.recargaLinhas = [];
-    flash('Medição registrada com sucesso.');
-    setTab('painel');
+    flash('Medição salva. Agora registre a recarga, se houver.');
+    abrirRecarga(ev.id);
   }
 }
 
-function startEdit(id) {
-  const rec = STATE.records.find(r => r.id === id);
-  if (!rec) return;
-  STATE.medForm.millId = rec.millId;
-  STATE.medForm.camaraId = rec.camaraId;
-  STATE.medForm.data = rec.data;
-  STATE.medForm.editingId = rec.id;
-  STATE.medForm.editAlturas = (rec.alturas || []).slice();
-  STATE.medForm.editObs = rec.obs || '';
-  STATE.medForm.recargaLinhas = (rec.recargaLinhas || []).map(l => ({ diam: l.diam, massaKg: Math.round(l.massaT*1000), origem: l.origem }));
+function startEditMedicao(id) {
+  const ev = findEvent(id);
+  if (!ev) return;
+  const alturas = {};
+  ev.camaras.forEach(ce => { alturas[ce.camaraId] = (ce.alturas || []).slice(); });
+  STATE.medForm = { millId: ev.millId, data: ev.data, alturas, obs: ev.obs || '', editingId: ev.id };
   setTab('medicao');
 }
 
 function cancelEdit() {
-  STATE.medForm.editingId = null;
-  STATE.medForm.editAlturas = null;
-  STATE.medForm.editObs = '';
-  STATE.medForm.recargaLinhas = [];
-  render();
-}
-
-function changeMillCamara() {
-  const millSel = document.getElementById('f-mill');
-  const camSel = document.getElementById('f-camara');
-  const newMillId = millSel.value;
-  if (newMillId !== STATE.medForm.millId) {
-    STATE.medForm.millId = newMillId;
-    const mill = findMill(newMillId);
-    STATE.medForm.camaraId = mill && mill.camaras[0] ? mill.camaras[0].id : null;
-  } else {
-    STATE.medForm.camaraId = camSel.value;
-  }
-  STATE.medForm.data = document.getElementById('f-data').value;
-  STATE.medForm.recargaLinhas = [];
-  STATE.medForm.editingId = null;
-  STATE.medForm.editAlturas = null;
-  STATE.medForm.editObs = '';
+  STATE.medForm = { millId: STATE.medForm.millId, data: todayISO(), alturas: {}, obs: '', editingId: null };
   render();
 }
 
 // ===========================================================================
-// Histórico
+// Recarga — bitolas novas ou usadas (reclassificadas) por câmara
 // ===========================================================================
-function enrichedRecords() {
-  return STATE.records.map(r => {
-    const mill = findMill(r.millId);
-    const camara = findCamara(mill, r.camaraId);
-    if (!camara) return null;
-    const calc = calcularMedicao(camara, r.alturas, STATE.ref);
-    const mesRef = (r.data || '').slice(0,7);
-    return Object.assign({}, r, { calc, camara, mill, mesRef });
-  }).filter(Boolean)
-    .filter(r => STATE.historicoFilterMill === 'todos' || r.millId === STATE.historicoFilterMill)
-    .sort((a,b) => a.data < b.data ? -1 : a.data > b.data ? 1 : 0);
+function abrirRecarga(eventId) {
+  carregarRecForm(eventId);
+  setTab('recarga');
+}
+
+function carregarRecForm(eventId) {
+  const ev = findEvent(eventId);
+  STATE.recForm = { eventId: ev ? ev.id : null, linhas: {} };
+  if (!ev) return;
+  ev.camaras.forEach((ce) => {
+    STATE.recForm.linhas[ce.camaraId] = (ce.recargaLinhas || []).map(l => ({ diam: Number(l.diam), massaKg: linhaToKg(l), origem: l.origem === 'usada' ? 'usada' : 'nova' }));
+  });
+}
+
+function renderRecarga() {
+  const eventos = eventosOrdenados();
+  let html = '<div class="stack"><div class="section-head"><h1>Recarga de corpos moedores</h1>' +
+    '<p>Escolha a medição (moinho e data) e informe, para cada câmara, as bitolas carregadas e se são novas ou usadas (reclassificadas). O grau de enchimento após a recarga é calculado automaticamente.</p></div>';
+  if (!eventos.length) return html + '<div class="empty-mini">Nenhuma medição registrada ainda. Registre primeiro em "Nova medição".</div></div>';
+
+  if (!findEvent(STATE.recForm.eventId)) carregarRecForm(eventos[0].id);
+  const ev = findEvent(STATE.recForm.eventId);
+  const mill = findMill(ev.millId);
+
+  html += '<label class="field" style="max-width:420px"><span>Medição</span><select onchange="carregarRecForm(this.value);render()">' +
+    eventos.map(e => '<option value="'+e.id+'" '+(e.id===ev.id?'selected':'')+'>'+formatDateBR(e.data)+' · '+esc(e.millNome)+'</option>').join('') + '</select></label>';
+
+  if (!mill) return html + '<div class="empty-mini">O moinho desta medição não existe mais no cadastro.</div></div>';
+
+  ev.camaras.forEach((ce) => {
+    const c = findCamara(mill, ce.camaraId);
+    if (!c) return;
+    html += '<div class="panel"><div class="panel-title">'+icon('layers',15)+' '+esc(c.nome)+'</div>' +
+      '<div class="two-col"><div>' +
+        '<div class="mix-editor-title">Bitolas carregadas</div>' +
+        '<div id="rec-linhas-'+c.id+'"></div>' +
+        '<button class="btn-ghost" onclick="addRecLinha(\''+c.id+'\')">'+icon('plus',13)+' Adicionar bitola</button>' +
+        '<div id="rec-tot-'+c.id+'" style="margin-top:10px"></div>' +
+      '</div><div id="rec-res-'+c.id+'"></div></div></div>';
+  });
+
+  html += '<button class="btn-primary btn-wide" onclick="salvarRecarga()">'+icon('check',16)+' Salvar recarga</button></div>';
+  return html;
+}
+
+function atualizarRecarga(soCamara) {
+  const ev = findEvent(STATE.recForm.eventId);
+  if (!ev) return;
+  const mill = findMill(ev.millId);
+  if (!mill) return;
+  const opcoesDiam = STATE.ref.slice().sort((a, b) => b.diam - a.diam).map(r => r.diam);
+
+  ev.camaras.forEach((ce) => {
+    const c = findCamara(mill, ce.camaraId);
+    if (!c || (soCamara && soCamara !== c.id)) return;
+    const linhas = STATE.recForm.linhas[c.id] || [];
+
+    const wrap = document.getElementById('rec-linhas-' + c.id);
+    if (wrap && !soCamara) {
+      wrap.innerHTML = linhas.length ? linhas.map((l, i) =>
+        '<div class="mix-editor-row">' +
+          '<select onchange="updRecLinha(\''+c.id+'\','+i+',\'diam\',Number(this.value),true)">' +
+            opcoesDiam.map(d => '<option value="'+d+'" '+(d===l.diam?'selected':'')+'>Ø '+d+' mm</option>').join('') +
+          '</select>' +
+          '<select onchange="updRecLinha(\''+c.id+'\','+i+',\'origem\',this.value,false)">' +
+            '<option value="nova" '+(l.origem!=='usada'?'selected':'')+'>Nova</option>' +
+            '<option value="usada" '+(l.origem==='usada'?'selected':'')+'>Usada (reclassificada)</option>' +
+          '</select>' +
+          '<input type="number" step="1" min="0" value="'+(l.massaKg||'')+'" placeholder="kg" style="width:100px" oninput="updRecLinha(\''+c.id+'\','+i+',\'massaKg\',this.value,false)" /><span>kg</span>' +
+          '<button class="icon-btn danger" onclick="removeRecLinha(\''+c.id+'\','+i+')" title="Remover">'+icon('trash',13)+'</button>' +
+        '</div>').join('') : '<div class="empty-mini">Nenhuma bitola adicionada — sem recarga nesta câmara.</div>';
+    }
+
+    const recLinhas = linhas.filter(l => Number(l.massaKg) > 0).map(l => ({ diam: l.diam, massaT: Number(l.massaKg) / 1000, origem: l.origem }));
+    const calc = calcCamaraEvento(c, { alturas: ce.alturas, recargaLinhas: recLinhas }, STATE.ref);
+
+    const tot = document.getElementById('rec-tot-' + c.id);
+    if (tot) tot.innerHTML = '<div class="result-list">' +
+      resultRow('Bitolas novas', fmtKg(calc.novaT)) +
+      resultRow('Bitolas usadas (reclassificadas)', fmtKg(calc.usadaT)) +
+      resultRow('Total da recarga', fmtKg(calc.recargaT), null, true) + '</div>';
+
+    const res = document.getElementById('rec-res-' + c.id);
+    if (res) {
+      const delta = calc.temRecarga ? calc.Gdepois - calc.Gcalc : 0;
+      res.innerHTML = '<div class="gauge-pair">' +
+          '<div class="gauge-box"><div class="metric-label">Antes da recarga</div>'+gaugeSvg(calc.Gcalc, c.metaG, 130)+'</div>' +
+          '<div class="gauge-box"><div class="metric-label">Após a recarga</div>'+gaugeSvg(calc.Gatual, c.metaG, 130, { vazio: !calc.temRecarga })+'</div>' +
+        '</div><div class="result-list">' +
+        resultRow('Medição em', formatDateBR(ev.data)) +
+        resultRow('G% antes da recarga', fmt(calc.Gcalc,2)+' %') +
+        resultRow('Recarga necessária estimada', calc.deficitMassa>0?fmtKg(calc.deficitMassa):'—', calc.deficitMassa>0?'bad':'ok') +
+        resultRow('G% após a recarga', calc.temRecarga ? fmt(calc.Gdepois,2)+' % ('+(delta>=0?'+':'')+fmt(delta,2)+' p.p.)' : '—', calc.temRecarga ? (statusFromG(calc.Gdepois, c.metaG).tone==='ok'?'ok':'bad') : null, true) +
+        resultRow(calc.faltaT>0 ? 'Ainda falta para a meta' : 'Situação', calc.faltaT>0 ? fmtKg(calc.faltaT) : (calc.Gatual >= c.metaG ? 'meta atingida' : 'dentro da tolerância'), calc.faltaT>0?'bad':'ok') +
+        '</div>';
+    }
+  });
+}
+
+function addRecLinha(camId) {
+  const opcoes = STATE.ref.slice().sort((a, b) => b.diam - a.diam);
+  STATE.recForm.linhas[camId] = STATE.recForm.linhas[camId] || [];
+  STATE.recForm.linhas[camId].push({ diam: opcoes[0] ? opcoes[0].diam : 0, massaKg: '', origem: 'nova' });
+  atualizarRecarga();
+}
+function removeRecLinha(camId, i) { STATE.recForm.linhas[camId].splice(i, 1); atualizarRecarga(); }
+function updRecLinha(camId, i, field, value, redesenhar) {
+  STATE.recForm.linhas[camId][i][field] = value;
+  if (redesenhar) atualizarRecarga(); else atualizarRecarga(camId);
+}
+
+function salvarRecarga() {
+  const ev = findEvent(STATE.recForm.eventId);
+  if (!ev) return;
+  ev.camaras.forEach((ce) => {
+    const linhas = STATE.recForm.linhas[ce.camaraId] || [];
+    ce.recargaLinhas = linhas.filter(l => Number(l.massaKg) > 0).map(l => ({ diam: Number(l.diam), massaT: Number(l.massaKg) / 1000, origem: l.origem }));
+  });
+  ev.recargaEditadaEm = new Date().toISOString();
+  persistEvents();
+  flash('Recarga salva.');
+  STATE.historicoFilterMill = 'todos';
+  setTab('historico');
+}
+
+// ===========================================================================
+// Histórico — tudo o que foi feito no dia, por moinho
+// ===========================================================================
+function eventosFiltrados() {
+  return eventosOrdenados().filter(e => STATE.historicoFilterMill === 'todos' || e.millId === STATE.historicoFilterMill);
 }
 
 function renderHistorico() {
-  const enriched = enrichedRecords();
-  let html = '<div class="stack"><div class="section-head"><h1>Histórico</h1><p>Evolução do grau de enchimento e das recargas realizadas, por data.</p></div>';
+  const eventos = eventosFiltrados();
+  let html = '<div class="stack"><div class="section-head"><h1>Histórico</h1><p>Para cada moinho e data: grau de enchimento antes da recarga, o que foi carregado em cada câmara (bitolas novas e usadas) e o grau de enchimento resultante.</p></div>';
   html += '<label class="field" style="max-width:320px"><span>Filtrar por moinho</span><select id="f-filter-mill" onchange="onFilterMillChange()">' +
     '<option value="todos" '+(STATE.historicoFilterMill==='todos'?'selected':'')+'>Todos os moinhos</option>' +
     STATE.mills.map(m => '<option value="'+m.id+'" '+(m.id===STATE.historicoFilterMill?'selected':'')+'>'+esc(m.nome)+'</option>').join('') +
     '</select></label>';
 
-  if (!enriched.length) {
-    html += '<div class="empty-mini">Nenhum registro ainda. Vá em "Nova medição" para começar.</div></div>';
-    return html;
-  }
+  if (!eventos.length) return html + '<div class="empty-mini">Nenhum registro ainda. Vá em "Nova medição" para começar.</div></div>';
 
-  html += '<div class="panel"><div class="panel-title">'+icon('up',15)+' G% ao longo do tempo</div><div class="chart-box"><canvas id="chart-g"></canvas></div></div>';
+  html += '<div class="panel"><div class="panel-title">'+icon('up',15)+' G% ao longo do tempo (linha cheia = medido · tracejada = após recarga)</div><div class="chart-box"><canvas id="chart-g"></canvas></div></div>';
   html += '<div class="panel"><div class="panel-title">'+icon('package',15)+' Recarga estimada × realizada (kg/mês)</div><div class="chart-box short"><canvas id="chart-recarga"></canvas></div></div>';
 
-  html += '<div class="panel"><div class="panel-title">'+icon('history',15)+' Registros</div><div class="table-wrap"><table class="table"><thead><tr>' +
-    '<th>Data</th><th>Moinho</th><th>Câmara</th><th>h médio</th><th>G%</th><th>Status</th><th>Repor est.</th><th>Repor real</th><th>Diâmetros usados</th><th></th></tr></thead><tbody>';
-  enriched.slice().reverse().forEach(r => {
-    const st = statusFromG(r.calc.Gcalc, r.camara.metaG);
-    const origemAbrev = { nova: 'nova', usada: 'usada', mista: 'mista' };
-    const detalheRecarga = (r.recargaLinhas && r.recargaLinhas.length)
-      ? r.recargaLinhas.map(l => 'Ø'+l.diam+': '+fmt(l.massaT*1000,0)+'kg ('+(origemAbrev[l.origem]||l.origem)+')').join('; ')
-      : '—';
-    html += '<tr><td>'+formatDateBR(r.data)+'</td><td>'+esc(r.millNome)+'</td><td>'+esc(r.camaraNome)+'</td><td>'+fmt(r.calc.hMedio,2)+' m</td><td>'+fmt(r.calc.Gcalc,1)+'%</td>' +
-      '<td><span class="status-chip status-'+st.tone+'">'+st.label+'</span></td>' +
-      '<td>'+(r.calc.deficitMassa>0?fmtKg(r.calc.deficitMassa):'—')+'</td>' +
-      '<td>'+(r.recargaRealT?fmtKg(r.recargaRealT):'—')+'</td>' +
-      '<td style="white-space:normal;min-width:180px">'+esc(detalheRecarga)+'</td>' +
-      '<td><button class="icon-btn" onclick="startEdit(\''+r.id+'\')" title="Editar" style="margin-right:6px">'+icon('edit',14)+'</button><button class="icon-btn" onclick="deleteRecord(\''+r.id+'\')" title="Excluir">'+icon('trash',14)+'</button></td></tr>';
+  eventos.forEach((ev) => {
+    const mill = findMill(ev.millId);
+    let totNova = 0, totUsada = 0;
+    let rows = '';
+    ev.camaras.forEach((ce) => {
+      const c = findCamara(mill, ce.camaraId);
+      if (!c) return;
+      const calc = calcCamaraEvento(c, ce, STATE.ref);
+      totNova += calc.novaT; totUsada += calc.usadaT;
+      rows += '<tr><td>'+esc(c.nome)+'</td>' +
+        '<td>'+fmt(calc.hMedio,2)+' m</td>' +
+        '<td><b>'+fmt(calc.Gcalc,1)+'%</b></td>' +
+        '<td>'+statusChip(calc.Gcalc, c.metaG)+'</td>' +
+        '<td>'+(calc.deficitMassa>0?fmtKg(calc.deficitMassa):'—')+'</td>' +
+        '<td>'+(calc.novaT>0?fmtKg(calc.novaT):'—')+'</td>' +
+        '<td>'+(calc.usadaT>0?fmtKg(calc.usadaT):'—')+'</td>' +
+        '<td style="white-space:normal;min-width:170px">'+descreveRecarga(ce.recargaLinhas)+'</td>' +
+        '<td><b>'+(calc.temRecarga?fmt(calc.Gdepois,1)+'%':'—')+'</b></td>' +
+        '<td>'+(calc.temRecarga?statusChip(calc.Gdepois, c.metaG):'—')+'</td>' +
+        '<td>'+c.metaG+'%</td></tr>';
+    });
+    const temRec = totNova + totUsada > 0;
+    html += '<div class="panel event-card">' +
+      '<div class="event-head"><div><div class="event-date">'+formatDateBR(ev.data)+'</div><div class="event-mill">'+icon('factory',14)+' '+esc(ev.millNome)+'</div></div>' +
+      '<div class="event-actions">' +
+        '<button class="btn-ghost" style="margin:0" onclick="abrirRecarga(\''+ev.id+'\')">'+icon('package',13)+' '+(temRec?'Editar recarga':'Registrar recarga')+'</button>' +
+        '<button class="btn-ghost" style="margin:0" onclick="startEditMedicao(\''+ev.id+'\')">'+icon('edit',13)+' Editar medição</button>' +
+        '<button class="icon-btn danger" onclick="deleteEvent(\''+ev.id+'\')" title="Excluir">'+icon('trash',14)+'</button>' +
+      '</div></div>' +
+      '<div class="table-wrap"><table class="table"><thead><tr>' +
+        '<th>Câmara</th><th>h médio</th><th>G% antes</th><th>Status antes</th><th>Recarga est.</th><th>Novas</th><th>Usadas</th><th>Bitolas carregadas</th><th>G% após</th><th>Status após</th><th>Meta</th>' +
+      '</tr></thead><tbody>'+rows+'</tbody></table></div>' +
+      '<div class="event-foot">' +
+        '<span>Total carregado no dia: <b>'+(temRec?fmtKg(totNova+totUsada):'sem recarga')+'</b>'+(temRec?' (novas '+fmtKg(totNova)+' · usadas '+fmtKg(totUsada)+')':'')+'</span>' +
+        (ev.obs ? '<span>Obs.: '+esc(ev.obs)+'</span>' : '') +
+      '</div></div>';
   });
-  html += '</tbody></table></div></div></div>';
+
+  html += '</div>';
   return html;
 }
 
@@ -740,72 +923,78 @@ function onFilterMillChange() {
   render();
 }
 
-function deleteRecord(id) {
-  STATE.records = STATE.records.filter(r => r.id !== id);
-  persistRecords();
+function deleteEvent(id) {
+  const ev = findEvent(id);
+  if (!ev) return;
+  if (!confirm('Excluir a medição de ' + formatDateBR(ev.data) + ' — ' + ev.millNome + ' (incluindo as recargas)?')) return;
+  STATE.events = STATE.events.filter(e => e.id !== id);
+  persistEvents();
   flash('Registro removido.');
   render();
 }
 
 function renderCharts() {
-  const enriched = enrichedRecords();
-  if (!enriched.length) return;
+  if (typeof Chart === 'undefined') return;
+  const eventos = eventosFiltrados().slice().reverse();
+  if (!eventos.length) return;
   const palette = ['#5B8DB8','#E8871E','#6B9E78','#C1554D','#A78BC7','#D6B85A'];
 
-  // --- G% ao longo do tempo (por data exata) ---
-  const datesSet = new Set();
-  const bySeries = {};
-  enriched.forEach(r => {
-    datesSet.add(r.data);
-    const key = r.camaraNome + ' · ' + r.millNome.replace('Moinho ','');
-    bySeries[key] = bySeries[key] || {};
-    bySeries[key][r.data] = Number(r.calc.Gcalc.toFixed(1));
+  const datas = Array.from(new Set(eventos.map(e => e.data))).sort();
+  const series = {};
+  const ordem = [];
+  eventos.forEach((ev) => {
+    const mill = findMill(ev.millId);
+    ev.camaras.forEach((ce) => {
+      const c = findCamara(mill, ce.camaraId);
+      if (!c) return;
+      const key = c.nome + ' · ' + ev.millNome.replace('Moinho ', '');
+      if (!series[key]) { series[key] = { antes: {}, depois: {} }; ordem.push(key); }
+      const calc = calcCamaraEvento(c, ce, STATE.ref);
+      series[key].antes[ev.data] = Number(calc.Gcalc.toFixed(1));
+      if (calc.temRecarga) series[key].depois[ev.data] = Number(calc.Gdepois.toFixed(1));
+    });
   });
-  const dates = Array.from(datesSet).sort();
-  const datasetsG = Object.keys(bySeries).map((key, i) => ({
-    label: key,
-    data: dates.map(d => bySeries[key][d] !== undefined ? bySeries[key][d] : null),
-    borderColor: palette[i % palette.length],
-    backgroundColor: palette[i % palette.length],
-    spanGaps: true,
-    tension: 0.25,
-  }));
+  const datasets = [];
+  ordem.forEach((key, i) => {
+    const cor = palette[i % palette.length];
+    datasets.push({ label: key, data: datas.map(d => series[key].antes[d] !== undefined ? series[key].antes[d] : null), borderColor: cor, backgroundColor: cor, spanGaps: true, tension: 0.25 });
+    if (Object.keys(series[key].depois).length) {
+      datasets.push({ label: key + ' (após recarga)', data: datas.map(d => series[key].depois[d] !== undefined ? series[key].depois[d] : null), borderColor: cor, backgroundColor: cor, borderDash: [6, 4], pointStyle: 'triangle', spanGaps: true, tension: 0.25 });
+    }
+  });
 
   const ctxG = document.getElementById('chart-g');
   if (ctxG) {
     if (CHARTS.g) CHARTS.g.destroy();
-    CHARTS.g = new Chart(ctxG, {
-      type: 'line',
-      data: { labels: dates.map(formatDateBR), datasets: datasetsG },
-      options: chartOptions('%'),
-    });
+    CHARTS.g = new Chart(ctxG, { type: 'line', data: { labels: datas.map(formatDateBR), datasets }, options: chartOptions('%') });
   }
 
-  // --- Recarga estimada x realizada, agrupada por mês (kg) ---
   const byMonth = {};
-  enriched.forEach(r => {
-    byMonth[r.mesRef] = byMonth[r.mesRef] || { estimado:0, realNova:0, realUsada:0, realMista:0 };
-    byMonth[r.mesRef].estimado += (r.calc.deficitMassa || 0) * 1000;
-    (r.recargaLinhas || []).forEach(l => {
-      const kg = l.massaT * 1000;
-      if (l.origem === 'usada') byMonth[r.mesRef].realUsada += kg;
-      else if (l.origem === 'mista') byMonth[r.mesRef].realMista += kg;
-      else byMonth[r.mesRef].realNova += kg;
+  eventos.forEach((ev) => {
+    const mill = findMill(ev.millId);
+    const mes = (ev.data || '').slice(0, 7);
+    byMonth[mes] = byMonth[mes] || { estimado: 0, nova: 0, usada: 0 };
+    ev.camaras.forEach((ce) => {
+      const c = findCamara(mill, ce.camaraId);
+      if (!c) return;
+      const calc = calcCamaraEvento(c, ce, STATE.ref);
+      byMonth[mes].estimado += calc.deficitMassa * 1000;
+      byMonth[mes].nova += calc.novaT * 1000;
+      byMonth[mes].usada += calc.usadaT * 1000;
     });
   });
-  const rMonths = Object.keys(byMonth).sort();
+  const meses = Object.keys(byMonth).sort();
   const ctxR = document.getElementById('chart-recarga');
   if (ctxR) {
     if (CHARTS.r) CHARTS.r.destroy();
     CHARTS.r = new Chart(ctxR, {
       type: 'bar',
       data: {
-        labels: rMonths,
+        labels: meses,
         datasets: [
-          { label: 'Estimado', data: rMonths.map(m => byMonth[m].estimado), backgroundColor: '#5B8DB8' },
-          { label: 'Real · nova', data: rMonths.map(m => byMonth[m].realNova), backgroundColor: '#E8871E', stack: 'real' },
-          { label: 'Real · usada/reclassificada', data: rMonths.map(m => byMonth[m].realUsada), backgroundColor: '#D9A441', stack: 'real' },
-          { label: 'Real · mista', data: rMonths.map(m => byMonth[m].realMista), backgroundColor: '#C1554D', stack: 'real' },
+          { label: 'Estimado', data: meses.map(m => byMonth[m].estimado), backgroundColor: '#5B8DB8' },
+          { label: 'Real · novas', data: meses.map(m => byMonth[m].nova), backgroundColor: '#E8871E', stack: 'real' },
+          { label: 'Real · usadas (reclassificadas)', data: meses.map(m => byMonth[m].usada), backgroundColor: '#D9A441', stack: 'real' },
         ],
       },
       options: chartOptions('kg'),
@@ -818,7 +1007,7 @@ function chartOptions(unit) {
     responsive: true, maintainAspectRatio: false,
     scales: {
       x: { ticks: { color: '#9AA3B0', font: { size: 11 } }, grid: { color: '#3A414C' } },
-      y: { ticks: { color: '#9AA3B0', font: { size: 11 }, callback: v => v+unit }, grid: { color: '#3A414C' } },
+      y: { ticks: { color: '#9AA3B0', font: { size: 11 }, callback: v => v + unit }, grid: { color: '#3A414C' } },
     },
     plugins: { legend: { labels: { color: '#E9E7E1', font: { size: 11 } } } },
   };
@@ -906,9 +1095,6 @@ function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&
 document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-action="setTab"]');
   if (el) setTab(el.getAttribute('data-tab'));
-});
-document.addEventListener('change', (e) => {
-  if (e.target.getAttribute && e.target.getAttribute('data-action') === 'changeMillCamara') changeMillCamara();
 });
 
 async function init() {
